@@ -14,6 +14,7 @@ app.use(express.static('client'));
 
 let hostId = null;
 let clientId = null;
+const players = {}; // socket.id -> {role,name,color}
 
 io.on('connection', (socket) => {
   socket.on('register', ({ role, name, color }) => {
@@ -31,12 +32,38 @@ io.on('connection', (socket) => {
       }
       clientId = socket.id;
     }
+    players[socket.id] = { role, name, color };
     io.emit('lobbyState', { hostConnected: !!hostId, clientConnected: !!clientId });
+  });
+
+  socket.on('startGame', () => {
+    if (socket.id !== hostId) return; // only host can start
+    const seed = Date.now().toString();
+    io.emit('startGame', { seed });
+  });
+
+  socket.on('spawnWave', () => {
+    const player = players[socket.id];
+    if (!player) return;
+    io.emit('spawnWave', { owner: player.role, color: player.color });
+  });
+
+  socket.on('placeTurret', ({ x, y }) => {
+    const player = players[socket.id];
+    if (!player) return;
+    io.emit('placeTurret', { owner: player.role, x, y, color: player.color });
+  });
+
+  socket.on('placeWall', ({ x, y }) => {
+    const player = players[socket.id];
+    if (!player) return;
+    io.emit('placeWall', { owner: player.role, x, y, color: player.color });
   });
 
   socket.on('disconnect', () => {
     if (socket.id === hostId) hostId = null;
     if (socket.id === clientId) clientId = null;
+    delete players[socket.id];
     io.emit('lobbyState', { hostConnected: !!hostId, clientConnected: !!clientId });
   });
 });
