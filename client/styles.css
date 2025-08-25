@@ -1,0 +1,31 @@
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: #0e1116;
+  color: #ddd;
+}
+
+#menu, #hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+
+.hidden {
+  display: none;
+}
+
+button {
+  margin: 4px;
+  background: #1f2935;
+  color: #ddd;
+  border: 1px solid #444;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
