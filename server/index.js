@@ -39,7 +39,9 @@ io.on('connection', (socket) => {
   socket.on('startGame', () => {
     if (socket.id !== hostId) return; // only host can start
     const seed = Date.now().toString();
-    io.emit('startGame', { seed });
+    const hostColor = players[hostId]?.color || '#0000ff';
+    const clientColor = players[clientId]?.color || '#ff0000';
+    io.emit('startGame', { seed, hostColor, clientColor });
   });
 
   socket.on('spawnWave', () => {

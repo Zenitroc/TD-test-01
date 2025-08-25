@@ -1,13 +1,19 @@
-// Generate deterministic path using seeded random
-export function generatePath(seed, width, height, segments = 40) {
+// Generate deterministic path on a grid using seeded random
+export function generatePath(seed, width, height, cell = 40) {
   const rand = mulberry32(hashCode(seed));
-  const points = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const y = height * t;
-    const xOffset = (rand() - 0.5) * width * 0.4; // horizontal variance
-    const x = width / 2 + xOffset;
-    points.push({ x, y });
+  const cols = Math.floor(width / cell);
+  const rows = Math.floor(height / cell);
+  let x = cols - 1; // start at top-right for client base
+  let y = 0;
+  const points = [{ x: x * cell + cell / 2, y: y * cell + cell / 2 }];
+  while (x > 0 || y < rows - 1) {
+    const moves = [];
+    if (x > 0) moves.push('left');
+    if (y < rows - 1) moves.push('down');
+    const move = moves[Math.floor(rand() * moves.length)];
+    if (move === 'left') x--;
+    else y++;
+    points.push({ x: x * cell + cell / 2, y: y * cell + cell / 2 });
   }
   return points;
 }

@@ -36,7 +36,7 @@ joinBtn.addEventListener('click', () => {
   socket.emit('register', {
     role: 'client',
     name: nameInput.value || 'Cliente',
-    color: colorInput.value,
+     color: colorInput.value,
   });
 });
 
@@ -61,12 +61,12 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
   }
 });
 
-socket.on('startGame', ({ seed }) => {
+socket.on('startGame', ({ seed, hostColor, clientColor }) => {
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  game = new Game(canvas, role, colorInput.value);
+  game = new Game(canvas, role, colorInput.value, hostColor, clientColor);
   game.start(seed);
   requestAnimationFrame(updateHud);
 });
@@ -75,7 +75,15 @@ function updateHud() {
   if (!game) return;
   moneySpan.textContent = `💰${Math.floor(game.money)}`;
   baseHpSpan.textContent = `❤️${Math.floor(game.baseHp)}`;
+  toggleAffordable(buildTurretBtn, game.money >= 15);
+  toggleAffordable(buildWallBtn, game.money >= 10);
+  toggleAffordable(sendWaveBtn, game.money >= 20);
   requestAnimationFrame(updateHud);
+}
+
+function toggleAffordable(btn, ok) {
+  btn.classList.toggle('affordable', ok);
+  btn.classList.toggle('unaffordable', !ok);
 }
 
 buildTurretBtn.addEventListener('click', () => {
