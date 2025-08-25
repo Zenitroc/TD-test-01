@@ -9,6 +9,7 @@ const joinBtn = document.getElementById('joinBtn');
 const menu = document.getElementById('menu');
 const hud = document.getElementById('hud');
 const ipDisplay = document.getElementById('ipDisplay');
+const statusDiv = document.getElementById('status');
 const moneySpan = document.getElementById('money');
 const baseHpSpan = document.getElementById('baseHp');
 const enemyHpSpan = document.getElementById('enemyHp');
@@ -33,6 +34,7 @@ hostBtn.addEventListener('click', () => {
     name: nameInput.value || 'Host',
     color: colorInput.value,
   });
+  statusDiv.textContent = 'Esperando jugador...';
 });
 
 joinBtn.addEventListener('click', () => {
@@ -42,6 +44,7 @@ joinBtn.addEventListener('click', () => {
     name: nameInput.value || 'Cliente',
     color: colorInput.value,
   });
+  statusDiv.textContent = 'Conectando...';
 });
 
 socket.on('ip', (ip) => {
@@ -62,6 +65,12 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
         startBtn.disabled = true;
       });
     }
+  }
+  if (role === 'host') {
+    statusDiv.textContent = clientConnected ? 'Jugador Conectado!' : 'Esperando jugador...';
+  }
+  if (role === 'client' && clientConnected) {
+    statusDiv.innerHTML = 'Conectado<br/>Esperando que el Host inicia... <span class="loader"></span>';
   }
 });
 
