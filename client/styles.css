@@ -103,8 +103,8 @@ button.action.unaffordable {
 
 canvas {
   display: block;
-  width: 100vw;
-  height: 100vh;
+  margin: 0 auto;
+  background: #000;
 }
 
 #status {

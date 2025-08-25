@@ -1,8 +1,8 @@
-import { generatePath, distanceToPath } from './path.js';
+import { generatePaths, distanceToPaths } from './path.js';
 import { Soldier, Turret, Wall, Bullet, dist } from './entities.js';
 
 export class Game {
-  constructor(canvas, role, color, hostColor, clientColor, hostName, clientName) {
+  constructor(canvas, role, color, hostColor, clientColor, hostName, clientName, towerCount = 1, econRate = 1, textureMode = 'minimal') {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.role = role;
@@ -18,7 +18,10 @@ export class Game {
     this.baseHp = { host: 100, client: 100 };
     this.lastTime = 0;
     this.mode = null; // 'turret' | 'wall'
-    this.path = [];
+    this.paths = [];
+    this.towerCount = towerCount;
+    this.econRate = econRate;
+    this.textureMode = textureMode;
     this.soldiers = [];
     this.turrets = [];
     this.walls = [];
@@ -27,16 +30,26 @@ export class Game {
     this.preview = null;
     this.camera = { x: 0, y: 0, scale: 1 };
     this.cooldowns = { wave: 0, turret: 0, wall: 0 };
+    this.images = {
+      turret: new Image(),
+      wall: new Image(),
+      soldier: new Image(),
+      ground: new Image()
+    };
+    this.images.turret.src = 'sprites/turret.svg';
+    this.images.wall.src = 'sprites/wall.svg';
+    this.images.soldier.src = 'sprites/soldier.svg';
+    this.images.ground.src = 'sprites/ground.svg';
   }
 
-  generate(seed, mapType) {
-    this.path = generatePath(seed, this.canvas.width, this.canvas.height, this.cellSize, mapType);
+  generate(seed, mapType, towerCount) {
+    this.paths = generatePaths(seed, this.canvas.width, this.canvas.height, this.cellSize, mapType, towerCount);
   }
 
   update(time) {
     const dt = (time - this.lastTime) / 1000;
     this.lastTime = time;
-    this.money += dt; // +1 per segundo
+    this.money += dt * this.econRate; // + econ per second
     this.soldiers.forEach(s => s.alive && s.update(dt));
     this.soldiers = this.soldiers.filter(s => s.alive);
     this.turrets.forEach(t => {
@@ -73,6 +86,11 @@ export class Game {
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.save();
     ctx.setTransform(this.camera.scale, 0, 0, this.camera.scale, this.camera.x, this.camera.y);
+    if (this.textureMode === 'textures' && this.images.ground.complete) {
+      const pattern = ctx.createPattern(this.images.ground, 'repeat');
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
 
     // zones
     ctx.fillStyle = hexToRgba(this.clientColor, 0.1);
@@ -96,36 +114,52 @@ export class Game {
       ctx.stroke();
     }
 
-    // path
+    // path and bases
     ctx.strokeStyle = '#444';
     ctx.lineWidth = this.cellSize / 2;
     ctx.lineCap = 'square';
-    ctx.beginPath();
-    this.path.forEach((p, i) => {
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
+    this.paths.forEach(path => {
+      ctx.beginPath();
+      path.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      // base towers
+      if (this.textureMode === 'textures' && this.images.turret.complete) {
+        ctx.drawImage(this.images.turret, path[0].x - this.cellSize / 2, path[0].y - this.cellSize / 2, this.cellSize, this.cellSize);
+        const end = path[path.length - 1];
+        ctx.drawImage(this.images.turret, end.x - this.cellSize / 2, end.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      } else {
+        ctx.fillStyle = this.clientColor;
+        ctx.fillRect(path[0].x - this.cellSize / 2, path[0].y - this.cellSize / 2, this.cellSize, this.cellSize);
+        const end = path[path.length - 1];
+        ctx.fillStyle = this.hostColor;
+        ctx.fillRect(end.x - this.cellSize / 2, end.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      }
     });
-    ctx.stroke();
-
-    // base towers (centered top and bottom)
-    ctx.fillStyle = this.clientColor;
-    ctx.fillRect(this.canvas.width / 2 - this.cellSize / 2, 0, this.cellSize, this.cellSize);
-    ctx.fillStyle = this.hostColor;
-    ctx.fillRect(this.canvas.width / 2 - this.cellSize / 2, this.canvas.height - this.cellSize, this.cellSize, this.cellSize);
 
     // walls
     this.walls.forEach(w => {
-      ctx.fillStyle = w.color;
-      ctx.fillRect(w.x - this.cellSize / 2, w.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      if (this.textureMode === 'textures' && this.images.wall.complete) {
+        ctx.drawImage(this.images.wall, w.x - this.cellSize / 2, w.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      } else {
+        ctx.fillStyle = w.color;
+        ctx.fillRect(w.x - this.cellSize / 2, w.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      }
       drawHpBar(ctx, w.x, w.y - this.cellSize / 2 - 6, this.cellSize, w.hp / w.maxHp);
     });
 
     // turrets
     this.turrets.forEach(t => {
-      ctx.fillStyle = t.color;
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, this.cellSize / 2 - 2, 0, Math.PI * 2);
-      ctx.fill();
+      if (this.textureMode === 'textures' && this.images.turret.complete) {
+        ctx.drawImage(this.images.turret, t.x - this.cellSize / 2, t.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      } else {
+        ctx.fillStyle = t.color;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, this.cellSize / 2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     });
 
     // bullets
@@ -138,8 +172,12 @@ export class Game {
 
     // soldiers
     this.soldiers.forEach(s => {
-      ctx.fillStyle = s.color;
-      ctx.fillRect(s.x - this.cellSize / 4, s.y - this.cellSize / 4, this.cellSize / 2, this.cellSize / 2);
+      if (this.textureMode === 'textures' && this.images.soldier.complete) {
+        ctx.drawImage(this.images.soldier, s.x - this.cellSize / 2, s.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      } else {
+        ctx.fillStyle = s.color;
+        ctx.fillRect(s.x - this.cellSize / 4, s.y - this.cellSize / 4, this.cellSize / 2, this.cellSize / 2);
+      }
       drawHpBar(ctx, s.x, s.y - this.cellSize / 2 - 4, this.cellSize / 2, s.hp / s.maxHp);
     });
 
@@ -165,7 +203,7 @@ export class Game {
   }
 
   start(seed, mapType) {
-    this.generate(seed, mapType);
+    this.generate(seed, mapType, this.towerCount);
     this.lastTime = performance.now();
     requestAnimationFrame(this.gameLoop);
   }
@@ -197,11 +235,11 @@ export class Game {
     if (owner === 'client' && gy >= half) return false;
     const point = { x: gx, y: gy };
     if (type === 'turret') {
-      const d = distanceToPath(point, this.path);
+      const d = distanceToPaths(point, this.paths);
       return d > this.cellSize / 2;
     }
     if (type === 'wall') {
-      return this.path.some(p => p.x === gx && p.y === gy);
+      return this.paths.some(path => path.some(p => p.x === gx && p.y === gy));
     }
     return false;
   }
@@ -235,11 +273,13 @@ export class Game {
       this.cooldowns.wave = now;
     }
     const dir = owner === 'host' ? 'up' : 'down';
-    for (let i = 0; i < 3; i++) {
-      const s = new Soldier(owner, this.path, color, dir);
-      s.t += (i * 0.02) * (dir === 'up' ? -1 : 1);
-      this.soldiers.push(s);
-    }
+    this.paths.forEach(path => {
+      for (let i = 0; i < 3; i++) {
+        const s = new Soldier(owner, path, color, dir);
+        s.t += (i * 0.02) * (dir === 'up' ? -1 : 1);
+        this.soldiers.push(s);
+      }
+    });
     return true;
   }
 }

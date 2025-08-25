@@ -21,6 +21,23 @@
         <option value="enorme">ENORME</option>
       </select>
     </label>
+    <label>Cantidad de torres<br/>
+      <select id="towerCount">
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+      </select>
+    </label>
+    <label>Economía<br/>
+      <input type="range" id="econRate" min="1" max="10" step="1" value="1" />
+      <span id="econLabel">x1</span>
+    </label>
+    <label>Modo gráfico<br/>
+      <select id="gfxMode">
+        <option value="minimal" selected>Minimalista</option>
+        <option value="textures">Texturas activadas</option>
+      </select>
+    </label>
     <div class="buttons">
       <button id="hostBtn" class="action">Host</button>
       <button id="joinBtn" class="action">Conectarse</button>

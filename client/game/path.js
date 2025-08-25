@@ -1,10 +1,10 @@
 // Generate different types of paths based on mapType.
 // All variants are mirrored vertically so both players share the same layout.
-export function generatePath(seed, width, height, cell = 40, mapType = 'intermedio') {
+export function generatePath(seed, width, height, cell = 40, mapType = 'intermedio', startCol = null) {
   const rand = mulberry32(hashCode(seed));
   const cols = Math.floor(width / cell);
   const rows = Math.floor(height / cell);
-  const cx = Math.floor(cols / 2);
+  const cx = startCol !== null ? startCol : Math.floor(cols / 2);
   const mid = Math.floor(rows / 2);
 
   let top = [];
@@ -56,6 +56,15 @@ export function generatePath(seed, width, height, cell = 40, mapType = 'intermed
   return topPoints.concat(bottomPoints);
 }
 
+export function generatePaths(seed, width, height, cell = 40, mapType = 'intermedio', count = 1) {
+  const cols = Math.floor(width / cell);
+  const positions = [];
+  for (let i = 0; i < count; i++) {
+    positions.push(Math.floor((i + 1) * cols / (count + 1)));
+  }
+  return positions.map((c, i) => generatePath(`${seed}_${i}`, width, height, cell, mapType, c));
+}
+
 function hashCode(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
@@ -78,6 +87,15 @@ export function distanceToPath(point, path) {
     const a = path[i];
     const b = path[i + 1];
     const d = distToSegment(point, a, b);
+    if (d < min) min = d;
+  }
+  return min;
+}
+
+export function distanceToPaths(point, paths) {
+  let min = Infinity;
+  for (const p of paths) {
+    const d = distanceToPath(point, p);
     if (d < min) min = d;
   }
   return min;
