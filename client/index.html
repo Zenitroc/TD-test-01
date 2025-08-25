@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>TD PvP</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="menu">
+    <h1>TD PvP</h1>
+    <label>Nombre: <input id="name" type="text" /></label>
+    <label>Color: <input id="color" type="color" value="#0000ff" /></label>
+    <div class="buttons">
+      <button id="hostBtn">Host</button>
+      <button id="joinBtn">Conectarse</button>
+    </div>
+    <div id="ipDisplay"></div>
+  </div>
+  <div id="hud" class="hidden">
+    <span id="money">💰20</span>
+    <span id="baseHp">❤️100</span>
+    <button id="buildTurret">Torreta</button>
+    <button id="buildWall">Muro</button>
+    <button id="sendWave">Enviar oleada</button>
+  </div>
+  <canvas id="game"></canvas>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

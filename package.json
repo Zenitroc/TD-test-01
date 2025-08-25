@@ -1,0 +1,17 @@
+{
+  "name": "td-test-01",
+  "version": "1.0.0",
+  "description": "TD 2D",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.5"
+  }
+}
