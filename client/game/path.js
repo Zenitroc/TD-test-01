@@ -1,16 +1,29 @@
 // Generate deterministic path on a grid using seeded random
-export function generatePath(seed, width, height, cell = 40) {
+// maxStraight limits how many consecutive tiles may go in the same direction
+export function generatePath(seed, width, height, cell = 40, maxStraight = 3) {
   const rand = mulberry32(hashCode(seed));
   const cols = Math.floor(width / cell);
   const rows = Math.floor(height / cell);
   let x = cols - 1; // start at top-right for client base
   let y = 0;
   const points = [{ x: x * cell + cell / 2, y: y * cell + cell / 2 }];
+  let lastMove = null;
+  let straight = 0;
   while (x > 0 || y < rows - 1) {
     const moves = [];
-    if (x > 0) moves.push('left');
-    if (y < rows - 1) moves.push('down');
+    if (x > 0 && (lastMove !== 'left' || straight < maxStraight)) moves.push('left');
+    if (y < rows - 1 && (lastMove !== 'down' || straight < maxStraight)) moves.push('down');
+    // fallback to ensure progression
+    if (!moves.length) {
+      if (x > 0) moves.push('left');
+      if (y < rows - 1) moves.push('down');
+    }
     const move = moves[Math.floor(rand() * moves.length)];
+    if (move === lastMove) straight++;
+    else {
+      lastMove = move;
+      straight = 1;
+    }
     if (move === 'left') x--;
     else y++;
     points.push({ x: x * cell + cell / 2, y: y * cell + cell / 2 });

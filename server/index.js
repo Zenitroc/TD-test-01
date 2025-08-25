@@ -41,7 +41,9 @@ io.on('connection', (socket) => {
     const seed = Date.now().toString();
     const hostColor = players[hostId]?.color || '#0000ff';
     const clientColor = players[clientId]?.color || '#ff0000';
-    io.emit('startGame', { seed, hostColor, clientColor });
+    const hostName = players[hostId]?.name || 'Host';
+    const clientName = players[clientId]?.name || 'Cliente';
+    io.emit('startGame', { seed, hostColor, clientColor, hostName, clientName });
   });
 
   socket.on('spawnWave', () => {

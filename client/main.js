@@ -11,11 +11,14 @@ const hud = document.getElementById('hud');
 const ipDisplay = document.getElementById('ipDisplay');
 const moneySpan = document.getElementById('money');
 const baseHpSpan = document.getElementById('baseHp');
+const enemyHpSpan = document.getElementById('enemyHp');
 const buildTurretBtn = document.getElementById('buildTurret');
 const buildWallBtn = document.getElementById('buildWall');
 const sendWaveBtn = document.getElementById('sendWave');
 const canvas = document.getElementById('game');
 const statsPanel = document.getElementById('statsPanel');
+const playerNameDiv = document.getElementById('playerName');
+const enemyNameDiv = document.getElementById('enemyName');
 const startBtn = document.createElement('button');
 startBtn.textContent = 'Iniciar partida';
 startBtn.id = 'startGame';
@@ -62,12 +65,16 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
   }
 });
 
-socket.on('startGame', ({ seed, hostColor, clientColor }) => {
+socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName }) => {
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  game = new Game(canvas, role, colorInput.value, hostColor, clientColor);
+  game = new Game(canvas, role, colorInput.value, hostColor, clientColor, hostName, clientName);
+  playerNameDiv.textContent = game.playerName;
+  playerNameDiv.style.color = game.color;
+  enemyNameDiv.textContent = game.enemyName;
+  enemyNameDiv.style.color = game.enemyColor;
   game.start(seed);
   requestAnimationFrame(updateHud);
 });
@@ -75,7 +82,9 @@ socket.on('startGame', ({ seed, hostColor, clientColor }) => {
 function updateHud() {
   if (!game) return;
   moneySpan.textContent = `💰${Math.floor(game.money)}`;
-  baseHpSpan.textContent = `❤️${Math.floor(game.baseHp)}`;
+  baseHpSpan.textContent = `❤️${Math.floor(game.baseHp[role])}`;
+  const enemyRole = role === 'host' ? 'client' : 'host';
+  enemyHpSpan.textContent = `❤️${Math.floor(game.baseHp[enemyRole])}`;
   toggleAffordable(buildTurretBtn, game.money >= 15);
   toggleAffordable(buildWallBtn, game.money >= 10);
   toggleAffordable(sendWaveBtn, game.money >= 20);
@@ -99,11 +108,13 @@ canvas.addEventListener('click', (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = (e.clientX - rect.left - game.camera.x) / game.camera.scale;
   const y = (e.clientY - rect.top - game.camera.y) / game.camera.scale;
-  game.tryPlace(x, y);
-  if (game.mode === 'turret') {
-    socket.emit('placeTurret', { x, y });
-  } else if (game.mode === 'wall') {
-    socket.emit('placeWall', { x, y });
+  const placed = game.tryPlace(x, y);
+  if (placed) {
+    if (game.mode === 'turret') {
+      socket.emit('placeTurret', { x, y });
+    } else if (game.mode === 'wall') {
+      socket.emit('placeWall', { x, y });
+    }
   }
   game.mode = null;
   game.preview = null;
@@ -141,7 +152,8 @@ window.addEventListener('keydown', (e) => {
 
 sendWaveBtn.addEventListener('click', () => {
   if (game) {
-    socket.emit('spawnWave');
+    const spawned = game.spawnWave();
+    if (spawned) socket.emit('spawnWave');
   }
 });
 

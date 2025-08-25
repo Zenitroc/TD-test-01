@@ -2,7 +2,7 @@ import { generatePath, distanceToPath } from './path.js';
 import { Soldier, Turret, Wall, Bullet, dist } from './entities.js';
 
 export class Game {
-  constructor(canvas, role, color, hostColor, clientColor) {
+  constructor(canvas, role, color, hostColor, clientColor, hostName, clientName) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.role = role;
@@ -10,8 +10,12 @@ export class Game {
     this.hostColor = hostColor;
     this.clientColor = clientColor;
     this.enemyColor = role === 'host' ? clientColor : hostColor;
+    this.hostName = hostName;
+    this.clientName = clientName;
+    this.playerName = role === 'host' ? hostName : clientName;
+    this.enemyName = role === 'host' ? clientName : hostName;
     this.money = 20;
-    this.baseHp = 100;
+    this.baseHp = { host: 100, client: 100 };
     this.lastTime = 0;
     this.mode = null; // 'turret' | 'wall'
     this.path = [];
@@ -22,6 +26,7 @@ export class Game {
     this.bullets = [];
     this.preview = null;
     this.camera = { x: 0, y: 0, scale: 1 };
+    this.cooldowns = { wave: 0, turret: 0, wall: 0 };
   }
 
   generate(seed) {
@@ -31,7 +36,7 @@ export class Game {
   update(time) {
     const dt = (time - this.lastTime) / 1000;
     this.lastTime = time;
-    this.money += dt; // +1 per second
+    this.money += dt; // +1 per segundo
     this.soldiers.forEach(s => s.alive && s.update(dt));
     this.soldiers = this.soldiers.filter(s => s.alive);
     this.turrets.forEach(t => {
@@ -53,8 +58,11 @@ export class Game {
     });
     // soldiers reaching base
     this.soldiers.forEach(s => {
-      if ((s.direction === 'up' && s.t <= 0) || (s.direction === 'down' && s.t >= 1)) {
-        this.baseHp -= 1;
+      if (s.direction === 'up' && s.t <= 0) {
+        this.baseHp.client -= 1;
+        s.alive = false;
+      } else if (s.direction === 'down' && s.t >= 1) {
+        this.baseHp.host -= 1;
         s.alive = false;
       }
     });
@@ -165,14 +173,22 @@ export class Game {
   tryPlace(x, y, owner = this.role, color = this.color, type = this.mode) {
     const gx = Math.floor(x / this.cellSize) * this.cellSize + this.cellSize / 2;
     const gy = Math.floor(y / this.cellSize) * this.cellSize + this.cellSize / 2;
-    if (!this.canPlace(gx, gy, owner, type)) return;
+    if (!this.canPlace(gx, gy, owner, type)) return false;
+    const now = performance.now() / 1000;
     if (owner === this.role) {
-      if (type === 'turret' && this.money < 15) return;
-      if (type === 'wall' && this.money < 10) return;
-      this.money -= type === 'turret' ? 15 : 10;
+      if (type === 'turret') {
+        if (this.money < 15 || now - this.cooldowns.turret < 0.5) return false;
+        this.money -= 15;
+        this.cooldowns.turret = now;
+      } else if (type === 'wall') {
+        if (this.money < 10 || now - this.cooldowns.wall < 0.5) return false;
+        this.money -= 10;
+        this.cooldowns.wall = now;
+      }
     }
     if (type === 'turret') this.turrets.push(new Turret(owner, gx, gy, color));
     if (type === 'wall') this.walls.push(new Wall(owner, gx, gy, color));
+    return true;
   }
 
   canPlace(gx, gy, owner, type) {
@@ -212,9 +228,11 @@ export class Game {
   }
 
   spawnWave(owner = this.role, color = this.color) {
+    const now = performance.now() / 1000;
     if (owner === this.role) {
-      if (this.money < 20) return;
+      if (this.money < 20 || now - this.cooldowns.wave < 1) return false;
       this.money -= 20;
+      this.cooldowns.wave = now;
     }
     const dir = owner === 'host' ? 'up' : 'down';
     for (let i = 0; i < 3; i++) {
@@ -222,6 +240,7 @@ export class Game {
       s.t += (i * 0.02) * (dir === 'up' ? -1 : 1);
       this.soldiers.push(s);
     }
+    return true;
   }
 }
 
