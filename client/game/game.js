@@ -75,10 +75,10 @@ export class Game {
     ctx.setTransform(this.camera.scale, 0, 0, this.camera.scale, this.camera.x, this.camera.y);
 
     // zones
-    ctx.fillStyle = hexToRgba(this.hostColor, 0.1);
-    ctx.fillRect(0, 0, this.canvas.width / 2, this.canvas.height);
     ctx.fillStyle = hexToRgba(this.clientColor, 0.1);
-    ctx.fillRect(this.canvas.width / 2, 0, this.canvas.width / 2, this.canvas.height);
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height / 2);
+    ctx.fillStyle = hexToRgba(this.hostColor, 0.1);
+    ctx.fillRect(0, this.canvas.height / 2, this.canvas.width, this.canvas.height / 2);
 
     // grid
     ctx.strokeStyle = '#222';
@@ -107,11 +107,11 @@ export class Game {
     });
     ctx.stroke();
 
-    // base towers
-    ctx.fillStyle = this.hostColor;
-    ctx.fillRect(0, this.canvas.height - this.cellSize, this.cellSize, this.cellSize);
+    // base towers (centered top and bottom)
     ctx.fillStyle = this.clientColor;
-    ctx.fillRect(this.canvas.width - this.cellSize, 0, this.cellSize, this.cellSize);
+    ctx.fillRect(this.canvas.width / 2 - this.cellSize / 2, 0, this.cellSize, this.cellSize);
+    ctx.fillStyle = this.hostColor;
+    ctx.fillRect(this.canvas.width / 2 - this.cellSize / 2, this.canvas.height - this.cellSize, this.cellSize, this.cellSize);
 
     // walls
     this.walls.forEach(w => {
@@ -192,9 +192,9 @@ export class Game {
   }
 
   canPlace(gx, gy, owner, type) {
-    const half = this.canvas.width / 2;
-    if (owner === 'host' && gx >= half) return false;
-    if (owner === 'client' && gx < half) return false;
+    const half = this.canvas.height / 2;
+    if (owner === 'host' && gy < half) return false;
+    if (owner === 'client' && gy >= half) return false;
     const point = { x: gx, y: gy };
     if (type === 'turret') {
       const d = distanceToPath(point, this.path);
