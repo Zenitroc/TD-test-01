@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <title>TD PvP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,11 +18,15 @@
       <button id="joinBtn" class="action">Conectarse</button>
     </div>
     <div id="ipDisplay"></div>
+     <div id="status"></div>
   </div>
   <div id="hud" class="hidden">
     <div id="statsPanel" class="panel">
+      <div id="playerName" class="playerName">Jugador</div>
       <div id="money">💰20</div>
       <div id="baseHp">❤️100</div>
+      <div id="enemyName" class="playerName">Enemigo</div>
+      <div id="enemyHp">❤️100</div>
       <div id="actions" class="buttons">
         <button id="buildTurret" class="action">Torreta</button>
         <button id="buildWall" class="action">Muro</button>

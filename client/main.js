@@ -9,12 +9,17 @@ const joinBtn = document.getElementById('joinBtn');
 const menu = document.getElementById('menu');
 const hud = document.getElementById('hud');
 const ipDisplay = document.getElementById('ipDisplay');
+const statusDiv = document.getElementById('status');
 const moneySpan = document.getElementById('money');
 const baseHpSpan = document.getElementById('baseHp');
+const enemyHpSpan = document.getElementById('enemyHp');
 const buildTurretBtn = document.getElementById('buildTurret');
 const buildWallBtn = document.getElementById('buildWall');
 const sendWaveBtn = document.getElementById('sendWave');
 const canvas = document.getElementById('game');
+const statsPanel = document.getElementById('statsPanel');
+const playerNameDiv = document.getElementById('playerName');
+const enemyNameDiv = document.getElementById('enemyName');
 const startBtn = document.createElement('button');
 startBtn.textContent = 'Iniciar partida';
 startBtn.id = 'startGame';
@@ -29,6 +34,7 @@ hostBtn.addEventListener('click', () => {
     name: nameInput.value || 'Host',
     color: colorInput.value,
   });
+  statusDiv.textContent = 'Esperando jugador...';
 });
 
 joinBtn.addEventListener('click', () => {
@@ -36,8 +42,9 @@ joinBtn.addEventListener('click', () => {
   socket.emit('register', {
     role: 'client',
     name: nameInput.value || 'Cliente',
-     color: colorInput.value,
+    color: colorInput.value,
   });
+  statusDiv.textContent = 'Conectando...';
 });
 
 socket.on('ip', (ip) => {
@@ -59,14 +66,24 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
       });
     }
   }
+  if (role === 'host') {
+    statusDiv.textContent = clientConnected ? 'Jugador Conectado!' : 'Esperando jugador...';
+  }
+  if (role === 'client' && clientConnected) {
+    statusDiv.innerHTML = 'Conectado<br/>Esperando que el Host inicia... <span class="loader"></span>';
+  }
 });
 
-socket.on('startGame', ({ seed, hostColor, clientColor }) => {
+socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName }) => {
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  game = new Game(canvas, role, colorInput.value, hostColor, clientColor);
+  game = new Game(canvas, role, colorInput.value, hostColor, clientColor, hostName, clientName);
+  playerNameDiv.textContent = game.playerName;
+  playerNameDiv.style.color = game.color;
+  enemyNameDiv.textContent = game.enemyName;
+  enemyNameDiv.style.color = game.enemyColor;
   game.start(seed);
   requestAnimationFrame(updateHud);
 });
@@ -74,7 +91,9 @@ socket.on('startGame', ({ seed, hostColor, clientColor }) => {
 function updateHud() {
   if (!game) return;
   moneySpan.textContent = `💰${Math.floor(game.money)}`;
-  baseHpSpan.textContent = `❤️${Math.floor(game.baseHp)}`;
+  baseHpSpan.textContent = `❤️${Math.floor(game.baseHp[role])}`;
+  const enemyRole = role === 'host' ? 'client' : 'host';
+  enemyHpSpan.textContent = `❤️${Math.floor(game.baseHp[enemyRole])}`;
   toggleAffordable(buildTurretBtn, game.money >= 15);
   toggleAffordable(buildWallBtn, game.money >= 10);
   toggleAffordable(sendWaveBtn, game.money >= 20);
@@ -96,20 +115,54 @@ buildWallBtn.addEventListener('click', () => {
 canvas.addEventListener('click', (e) => {
   if (!game || !game.mode) return;
   const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  game.tryPlace(x, y);
-  if (game.mode === 'turret') {
-    socket.emit('placeTurret', { x, y });
-  } else if (game.mode === 'wall') {
-    socket.emit('placeWall', { x, y });
+  const x = (e.clientX - rect.left - game.camera.x) / game.camera.scale;
+  const y = (e.clientY - rect.top - game.camera.y) / game.camera.scale;
+  const placed = game.tryPlace(x, y);
+  if (placed) {
+    if (game.mode === 'turret') {
+      socket.emit('placeTurret', { x, y });
+    } else if (game.mode === 'wall') {
+      socket.emit('placeWall', { x, y });
+    }
   }
   game.mode = null;
+  game.preview = null;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!game) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left - game.camera.x) / game.camera.scale;
+  const y = (e.clientY - rect.top - game.camera.y) / game.camera.scale;
+  game.setPreview(x, y);
+});
+
+canvas.addEventListener('wheel', (e) => {
+  if (!game) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  game.zoom(factor, x, y);
+  const wx = (x - game.camera.x) / game.camera.scale;
+  const wy = (y - game.camera.y) / game.camera.scale;
+  game.setPreview(wx, wy);
+}, { passive: false });
+
+window.addEventListener('keydown', (e) => {
+  if (!game) return;
+  const step = 20;
+  if (['ArrowUp', 'w', 'W'].includes(e.key)) game.moveCamera(0, step);
+  if (['ArrowDown', 's', 'S'].includes(e.key)) game.moveCamera(0, -step);
+  if (['ArrowLeft', 'a', 'A'].includes(e.key)) game.moveCamera(step, 0);
+  if (['ArrowRight', 'd', 'D'].includes(e.key)) game.moveCamera(-step, 0);
 });
 
 sendWaveBtn.addEventListener('click', () => {
   if (game) {
-    socket.emit('spawnWave');
+    const spawned = game.spawnWave();
+    if (spawned) socket.emit('spawnWave');
   }
 });
 
@@ -131,3 +184,26 @@ socket.on('placeWall', ({ owner, x, y, color }) => {
     game.tryPlace(x, y, owner, color, 'wall');
   }
 });
+
+makeDraggable(statsPanel);
+
+function makeDraggable(el) {
+  let startX = 0, startY = 0, offsetX = 0, offsetY = 0;
+  el.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    startX = e.clientX;
+    startY = e.clientY;
+    offsetX = el.offsetLeft;
+    offsetY = el.offsetTop;
+    function onMove(ev) {
+      el.style.left = offsetX + ev.clientX - startX + 'px';
+      el.style.top = offsetY + ev.clientY - startY + 'px';
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+}

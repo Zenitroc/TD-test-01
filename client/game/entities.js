@@ -6,7 +6,8 @@ export class Soldier {
     this.t = direction === 'up' ? 1 : 0; // 0 start at top? Wait host bottom: host direction up, client direction down
     this.direction = direction; // 'up' or 'down'
     this.speed = 40; // pixels per second
-    this.hp = 5;
+    this.maxHp = 5;
+    this.hp = this.maxHp;
     this.alive = true;
   }
   update(dt) {
@@ -27,15 +28,16 @@ export class Turret {
     this.cooldown = 0;
   }
   update(dt, soldiers) {
-    if (this.cooldown > 0) this.cooldown -= dt;
-    else {
-      const target = soldiers.find(s => s.owner !== this.owner && s.alive && dist(s, this) < this.range);
-      if (target) {
-        target.hp -= 5;
-        if (target.hp <= 0) target.alive = false;
-        this.cooldown = 0.5; // fire every 0.5s
-      }
+    if (this.cooldown > 0) {
+      this.cooldown -= dt;
+      return null;
     }
+    const target = soldiers.find(s => s.owner !== this.owner && s.alive && dist(s, this) < this.range);
+    if (target) {
+      this.cooldown = 0.5; // fire every 0.5s
+      return new Bullet(this.x, this.y, target, 5, this.color);
+    }
+    return null;
   }
 }
 
@@ -44,7 +46,34 @@ export class Wall {
     this.owner = owner;
     this.x = x; this.y = y;
     this.color = color;
-    this.hp = 6;
+    this.maxHp = 6;
+    this.hp = this.maxHp;
+  }
+}
+
+export class Bullet {
+  constructor(x, y, target, dmg, color) {
+    this.x = x; this.y = y;
+    this.target = target;
+    this.dmg = dmg;
+    this.color = color;
+    this.speed = 200;
+    this.alive = true;
+  }
+  update(dt) {
+    if (!this.target.alive) { this.alive = false; return; }
+    const dx = this.target.x - this.x;
+    const dy = this.target.y - this.y;
+    const d = Math.hypot(dx, dy);
+    const step = this.speed * dt;
+    if (d <= step) {
+      this.target.hp -= this.dmg;
+      if (this.target.hp <= 0) this.target.alive = false;
+      this.alive = false;
+    } else {
+      this.x += (dx / d) * step;
+      this.y += (dy / d) * step;
+    }
   }
 }
 
