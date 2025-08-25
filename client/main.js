@@ -15,6 +15,7 @@ const buildTurretBtn = document.getElementById('buildTurret');
 const buildWallBtn = document.getElementById('buildWall');
 const sendWaveBtn = document.getElementById('sendWave');
 const canvas = document.getElementById('game');
+const statsPanel = document.getElementById('statsPanel');
 const startBtn = document.createElement('button');
 startBtn.textContent = 'Iniciar partida';
 startBtn.id = 'startGame';
@@ -96,8 +97,8 @@ buildWallBtn.addEventListener('click', () => {
 canvas.addEventListener('click', (e) => {
   if (!game || !game.mode) return;
   const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const x = (e.clientX - rect.left - game.camera.x) / game.camera.scale;
+  const y = (e.clientY - rect.top - game.camera.y) / game.camera.scale;
   game.tryPlace(x, y);
   if (game.mode === 'turret') {
     socket.emit('placeTurret', { x, y });
@@ -105,6 +106,37 @@ canvas.addEventListener('click', (e) => {
     socket.emit('placeWall', { x, y });
   }
   game.mode = null;
+  game.preview = null;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!game) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left - game.camera.x) / game.camera.scale;
+  const y = (e.clientY - rect.top - game.camera.y) / game.camera.scale;
+  game.setPreview(x, y);
+});
+
+canvas.addEventListener('wheel', (e) => {
+  if (!game) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  game.zoom(factor, x, y);
+  const wx = (x - game.camera.x) / game.camera.scale;
+  const wy = (y - game.camera.y) / game.camera.scale;
+  game.setPreview(wx, wy);
+}, { passive: false });
+
+window.addEventListener('keydown', (e) => {
+  if (!game) return;
+  const step = 20;
+  if (['ArrowUp', 'w', 'W'].includes(e.key)) game.moveCamera(0, step);
+  if (['ArrowDown', 's', 'S'].includes(e.key)) game.moveCamera(0, -step);
+  if (['ArrowLeft', 'a', 'A'].includes(e.key)) game.moveCamera(step, 0);
+  if (['ArrowRight', 'd', 'D'].includes(e.key)) game.moveCamera(-step, 0);
 });
 
 sendWaveBtn.addEventListener('click', () => {
@@ -131,3 +163,26 @@ socket.on('placeWall', ({ owner, x, y, color }) => {
     game.tryPlace(x, y, owner, color, 'wall');
   }
 });
+
+makeDraggable(statsPanel);
+
+function makeDraggable(el) {
+  let startX = 0, startY = 0, offsetX = 0, offsetY = 0;
+  el.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    startX = e.clientX;
+    startY = e.clientY;
+    offsetX = el.offsetLeft;
+    offsetY = el.offsetTop;
+    function onMove(ev) {
+      el.style.left = offsetX + ev.clientX - startX + 'px';
+      el.style.top = offsetY + ev.clientY - startY + 'px';
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+}

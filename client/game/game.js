@@ -1,5 +1,5 @@
 import { generatePath, distanceToPath } from './path.js';
-import { Soldier, Turret, Wall, pointAt, dist } from './entities.js';
+import { Soldier, Turret, Wall, Bullet, dist } from './entities.js';
 
 export class Game {
   constructor(canvas, role, color, hostColor, clientColor) {
@@ -19,6 +19,9 @@ export class Game {
     this.turrets = [];
     this.walls = [];
     this.cellSize = 40;
+    this.bullets = [];
+    this.preview = null;
+    this.camera = { x: 0, y: 0, scale: 1 };
   }
 
   generate(seed) {
@@ -31,7 +34,12 @@ export class Game {
     this.money += dt; // +1 per second
     this.soldiers.forEach(s => s.alive && s.update(dt));
     this.soldiers = this.soldiers.filter(s => s.alive);
-    this.turrets.forEach(t => t.update(dt, this.soldiers));
+    this.turrets.forEach(t => {
+      const b = t.update(dt, this.soldiers);
+      if (b) this.bullets.push(b);
+    });
+    this.bullets.forEach(b => b.alive && b.update(dt));
+    this.bullets = this.bullets.filter(b => b.alive);
     // soldiers vs walls
     this.soldiers.forEach(s => {
       const target = this.walls.find(w => w.owner !== s.owner && dist(w, s) < this.cellSize / 2);
@@ -55,6 +63,8 @@ export class Game {
   render() {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.save();
+    ctx.setTransform(this.camera.scale, 0, 0, this.camera.scale, this.camera.x, this.camera.y);
 
     // zones
     ctx.fillStyle = hexToRgba(this.hostColor, 0.1);
@@ -99,6 +109,7 @@ export class Game {
     this.walls.forEach(w => {
       ctx.fillStyle = w.color;
       ctx.fillRect(w.x - this.cellSize / 2, w.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      drawHpBar(ctx, w.x, w.y - this.cellSize / 2 - 6, this.cellSize, w.hp / w.maxHp);
     });
 
     // turrets
@@ -109,11 +120,34 @@ export class Game {
       ctx.fill();
     });
 
+    // bullets
+    this.bullets.forEach(b => {
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
     // soldiers
     this.soldiers.forEach(s => {
       ctx.fillStyle = s.color;
       ctx.fillRect(s.x - this.cellSize / 4, s.y - this.cellSize / 4, this.cellSize / 2, this.cellSize / 2);
+      drawHpBar(ctx, s.x, s.y - this.cellSize / 2 - 4, this.cellSize / 2, s.hp / s.maxHp);
     });
+
+    // preview ghost
+    if (this.preview) {
+      ctx.fillStyle = this.preview.valid ? 'rgba(46,204,113,0.5)' : 'rgba(231,76,60,0.5)';
+      if (this.preview.type === 'turret') {
+        ctx.beginPath();
+        ctx.arc(this.preview.x, this.preview.y, this.cellSize / 2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (this.preview.type === 'wall') {
+        ctx.fillRect(this.preview.x - this.cellSize / 2, this.preview.y - this.cellSize / 2, this.cellSize, this.cellSize);
+      }
+    }
+
+    ctx.restore();
   }
 
   gameLoop = (time) => {
@@ -131,29 +165,50 @@ export class Game {
   tryPlace(x, y, owner = this.role, color = this.color, type = this.mode) {
     const gx = Math.floor(x / this.cellSize) * this.cellSize + this.cellSize / 2;
     const gy = Math.floor(y / this.cellSize) * this.cellSize + this.cellSize / 2;
-    const half = this.canvas.width / 2;
-    if (owner === 'host' && gx >= half) return;
-    if (owner === 'client' && gx < half) return;
-    const point = { x: gx, y: gy };
-    const d = distanceToPath(point, this.path);
-    if (type === 'turret') {
-      if (d > this.cellSize / 2) {
-        if (owner === this.role) {
-          if (this.money < 15) return;
-          this.money -= 15;
-        }
-        this.turrets.push(new Turret(owner, gx, gy, color));
-      }
-    } else if (type === 'wall') {
-      const onPath = this.path.some(p => p.x === gx && p.y === gy);
-      if (onPath) {
-        if (owner === this.role) {
-          if (this.money < 10) return;
-          this.money -= 10;
-        }
-        this.walls.push(new Wall(owner, gx, gy, color));
-      }
+    if (!this.canPlace(gx, gy, owner, type)) return;
+    if (owner === this.role) {
+      if (type === 'turret' && this.money < 15) return;
+      if (type === 'wall' && this.money < 10) return;
+      this.money -= type === 'turret' ? 15 : 10;
     }
+    if (type === 'turret') this.turrets.push(new Turret(owner, gx, gy, color));
+    if (type === 'wall') this.walls.push(new Wall(owner, gx, gy, color));
+  }
+
+  canPlace(gx, gy, owner, type) {
+    const half = this.canvas.width / 2;
+    if (owner === 'host' && gx >= half) return false;
+    if (owner === 'client' && gx < half) return false;
+    const point = { x: gx, y: gy };
+    if (type === 'turret') {
+      const d = distanceToPath(point, this.path);
+      return d > this.cellSize / 2;
+    }
+    if (type === 'wall') {
+      return this.path.some(p => p.x === gx && p.y === gy);
+    }
+    return false;
+  }
+
+  setPreview(x, y) {
+    if (!this.mode) { this.preview = null; return; }
+    const gx = Math.floor(x / this.cellSize) * this.cellSize + this.cellSize / 2;
+    const gy = Math.floor(y / this.cellSize) * this.cellSize + this.cellSize / 2;
+    const valid = this.canPlace(gx, gy, this.role, this.mode);
+    this.preview = { x: gx, y: gy, valid, type: this.mode };
+  }
+
+  zoom(factor, cx, cy) {
+    const oldScale = this.camera.scale;
+    this.camera.scale = Math.min(2, Math.max(0.5, this.camera.scale * factor));
+    const scaleChange = this.camera.scale / oldScale;
+    this.camera.x = cx - (cx - this.camera.x) * scaleChange;
+    this.camera.y = cy - (cy - this.camera.y) * scaleChange;
+  }
+
+  moveCamera(dx, dy) {
+    this.camera.x += dx;
+    this.camera.y += dy;
   }
 
   spawnWave(owner = this.role, color = this.color) {
@@ -177,4 +232,11 @@ function hexToRgba(hex, alpha) {
   const g = (bigint >> 8) & 255;
   const b = bigint & 255;
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function drawHpBar(ctx, x, y, width, ratio) {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x - width / 2, y, width, 4);
+  ctx.fillStyle = `hsl(${ratio * 120}, 100%, 40%)`;
+  ctx.fillRect(x - width / 2, y, width * ratio, 4);
 }
