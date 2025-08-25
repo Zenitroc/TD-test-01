@@ -141,4 +141,6 @@ function nearestPointOnPath(p, path) {
     if (d < min) { min = d; best = pt; }
   }
   return best || p;
+
 }
+

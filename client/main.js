@@ -122,4 +122,6 @@ socket.on('placeWall', ({ owner, x, y, color }) => {
   if (owner !== role) {
     game.tryPlace(x, y, owner, color, 'wall');
   }
+
 });
+

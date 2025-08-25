@@ -48,4 +48,5 @@ function distToSegment(p, a, b) {
   t = Math.max(0, Math.min(1, t));
   const proj = { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
   return Math.hypot(p.x - proj.x, p.y - proj.y);
+
 }
