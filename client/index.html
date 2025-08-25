@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>TD PvP</title>
+  <title>Bizzare Defense</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
@@ -10,7 +10,7 @@
 </head>
 <body>
   <div id="menu" class="panel">
-    <h1>TD PvP</h1>
+    <h1>Bizzare Defense</h1>
     <label>Nombre<br/><input id="name" type="text" /></label>
     <label>Color<br/><input id="color" type="color" value="#0000ff" /></label>
     <label>Tipo de mapa<br/>
@@ -38,15 +38,25 @@
         <option value="textures">Texturas activadas</option>
       </select>
     </label>
+    <label>Música (URL)<br/>
+      <input id="musicUrl" type="text" placeholder="https://" disabled />
+    </label>
     <div class="buttons">
       <button id="hostBtn" class="action">Host</button>
       <button id="joinBtn" class="action">Conectarse</button>
     </div>
     <div id="ipDisplay"></div>
-    <div id="status"></div>
-  </div>
-  <div id="hud" class="hidden">
-    <div id="statsPanel" class="panel">
+      <div id="status"></div>
+      <div id="instructions">
+        <h2>📘 Cómo jugar</h2>
+        <p>🎯 <strong>Objetivo:</strong> protege tu base 🏠 y derriba la del rival.</p>
+        <p>🛠️ <strong>Mecánicas:</strong> coloca torretas 🏹 y muros 🧱, envía oleadas de soldados 👾 y mejora tus defensas.</p>
+        <p>⚙️ <strong>Configuración:</strong> elige tipo de mapa, cantidad de torres iniciales y ritmo de economía antes de iniciar.</p>
+        <p>🕹️ <strong>Controles:</strong> clic izquierdo construye, clic medio mueve la cámara y clic derecho mejora una torreta.</p>
+      </div>
+    </div>
+    <div id="hud" class="hidden">
+      <div id="statsPanel" class="panel">
       <div id="playerName" class="playerName">Jugador</div>
       <div id="money">💰20</div>
       <div id="baseHp">❤️100</div>
@@ -68,7 +78,14 @@
       </div>
     </div>
   </div>
-  <canvas id="game"></canvas>
+  <canvas id="game" class="hidden"></canvas>
+  <div id="endScreen" class="hidden">
+    <canvas id="fireworks"></canvas>
+    <div id="endPanel" class="panel">
+      <h2 id="resultMsg"></h2>
+      <div id="finalStats"></div>
+    </div>
+  </div>
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="main.js"></script>
 </body>
