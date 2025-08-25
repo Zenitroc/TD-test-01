@@ -4,6 +4,7 @@ const socket = io();
 
 const nameInput = document.getElementById('name');
 const colorInput = document.getElementById('color');
+const mapTypeSelect = document.getElementById('mapType');
 const hostBtn = document.getElementById('hostBtn');
 const joinBtn = document.getElementById('joinBtn');
 const menu = document.getElementById('menu');
@@ -35,6 +36,7 @@ hostBtn.addEventListener('click', () => {
     color: colorInput.value,
   });
   statusDiv.textContent = 'Esperando jugador...';
+  mapTypeSelect.disabled = false;
 });
 
 joinBtn.addEventListener('click', () => {
@@ -45,6 +47,7 @@ joinBtn.addEventListener('click', () => {
     color: colorInput.value,
   });
   statusDiv.textContent = 'Conectando...';
+  mapTypeSelect.disabled = true;
 });
 
 socket.on('ip', (ip) => {
@@ -61,7 +64,7 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
       menu.appendChild(startBtn);
       startBtn.disabled = false;
       startBtn.addEventListener('click', () => {
-        socket.emit('startGame');
+        socket.emit('startGame', { mapType: mapTypeSelect.value });
         startBtn.disabled = true;
       });
     }
@@ -74,7 +77,7 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
   }
 });
 
-socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName }) => {
+socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName, mapType }) => {
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
   canvas.width = window.innerWidth;
@@ -84,7 +87,7 @@ socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName }) 
   playerNameDiv.style.color = game.color;
   enemyNameDiv.textContent = game.enemyName;
   enemyNameDiv.style.color = game.enemyColor;
-  game.start(seed);
+  game.start(seed, mapType);
   requestAnimationFrame(updateHud);
 });
 
