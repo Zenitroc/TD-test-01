@@ -29,8 +29,8 @@ export class Game {
     this.cooldowns = { wave: 0, turret: 0, wall: 0 };
   }
 
-  generate(seed) {
-    this.path = generatePath(seed, this.canvas.width, this.canvas.height, this.cellSize);
+  generate(seed, mapType) {
+    this.path = generatePath(seed, this.canvas.width, this.canvas.height, this.cellSize, mapType);
   }
 
   update(time) {
@@ -164,8 +164,8 @@ export class Game {
     requestAnimationFrame(this.gameLoop);
   }
 
-  start(seed) {
-    this.generate(seed);
+  start(seed, mapType) {
+    this.generate(seed, mapType);
     this.lastTime = performance.now();
     requestAnimationFrame(this.gameLoop);
   }
