@@ -5,6 +5,10 @@ const socket = io();
 const nameInput = document.getElementById('name');
 const colorInput = document.getElementById('color');
 const mapTypeSelect = document.getElementById('mapType');
+const towerSelect = document.getElementById('towerCount');
+const econRateInput = document.getElementById('econRate');
+const econLabel = document.getElementById('econLabel');
+const gfxModeSelect = document.getElementById('gfxMode');
 const hostBtn = document.getElementById('hostBtn');
 const joinBtn = document.getElementById('joinBtn');
 const menu = document.getElementById('menu');
@@ -37,6 +41,9 @@ hostBtn.addEventListener('click', () => {
   });
   statusDiv.textContent = 'Esperando jugador...';
   mapTypeSelect.disabled = false;
+  towerSelect.disabled = false;
+  econRateInput.disabled = false;
+  gfxModeSelect.disabled = false;
 });
 
 joinBtn.addEventListener('click', () => {
@@ -48,6 +55,9 @@ joinBtn.addEventListener('click', () => {
   });
   statusDiv.textContent = 'Conectando...';
   mapTypeSelect.disabled = true;
+  towerSelect.disabled = true;
+  econRateInput.disabled = true;
+  gfxModeSelect.disabled = true;
 });
 
 socket.on('ip', (ip) => {
@@ -64,7 +74,7 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
       menu.appendChild(startBtn);
       startBtn.disabled = false;
       startBtn.addEventListener('click', () => {
-        socket.emit('startGame', { mapType: mapTypeSelect.value });
+        socket.emit('startGame', { mapType: mapTypeSelect.value, towerCount: +towerSelect.value, econRate: +econRateInput.value, gfxMode: gfxModeSelect.value });
         startBtn.disabled = true;
       });
     }
@@ -77,12 +87,14 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
   }
 });
 
-socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName, mapType }) => {
+const GAME_WIDTH = 1280;
+const GAME_HEIGHT = 720;
+socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName, mapType, towerCount, econRate, gfxMode }) => {
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  game = new Game(canvas, role, colorInput.value, hostColor, clientColor, hostName, clientName);
+  canvas.width = GAME_WIDTH;
+  canvas.height = GAME_HEIGHT;
+  game = new Game(canvas, role, colorInput.value, hostColor, clientColor, hostName, clientName, towerCount, econRate, gfxMode);
   playerNameDiv.textContent = game.playerName;
   playerNameDiv.style.color = game.color;
   enemyNameDiv.textContent = game.enemyName;
@@ -153,6 +165,29 @@ canvas.addEventListener('wheel', (e) => {
   game.setPreview(wx, wy);
 }, { passive: false });
 
+let dragging = false;
+let lastX = 0, lastY = 0;
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 2) {
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }
+});
+window.addEventListener('mousemove', (e) => {
+  if (dragging && game) {
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    game.moveCamera(dx, dy);
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }
+});
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 2) dragging = false;
+});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
 window.addEventListener('keydown', (e) => {
   if (!game) return;
   const step = 20;
@@ -186,6 +221,10 @@ socket.on('placeWall', ({ owner, x, y, color }) => {
   if (owner !== role) {
     game.tryPlace(x, y, owner, color, 'wall');
   }
+});
+
+econRateInput.addEventListener('input', () => {
+  econLabel.textContent = `x${econRateInput.value}`;
 });
 
 makeDraggable(statsPanel);

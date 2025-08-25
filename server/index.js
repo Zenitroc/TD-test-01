@@ -36,14 +36,14 @@ io.on('connection', (socket) => {
     io.emit('lobbyState', { hostConnected: !!hostId, clientConnected: !!clientId });
   });
 
-  socket.on('startGame', ({ mapType } = {}) => {
+  socket.on('startGame', ({ mapType, towerCount, econRate, gfxMode } = {}) => {
     if (socket.id !== hostId) return; // only host can start
     const seed = Date.now().toString();
     const hostColor = players[hostId]?.color || '#0000ff';
     const clientColor = players[clientId]?.color || '#ff0000';
     const hostName = players[hostId]?.name || 'Host';
     const clientName = players[clientId]?.name || 'Cliente';
-    io.emit('startGame', { seed, hostColor, clientColor, hostName, clientName, mapType: mapType || 'intermedio' });
+    io.emit('startGame', { seed, hostColor, clientColor, hostName, clientName, mapType: mapType || 'intermedio', towerCount: towerCount || 1, econRate: econRate || 1, gfxMode: gfxMode || 'minimal' });
   });
 
   socket.on('spawnWave', () => {
