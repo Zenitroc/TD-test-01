@@ -101,6 +101,18 @@ button.action.unaffordable {
   box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
 }
 
+button.action.cooldown {
+  border-color: #777;
+  box-shadow: 0 0 8px rgba(120,120,120,0.6);
+  animation: pulse 1s infinite alternate;
+  cursor: not-allowed;
+}
+
+@keyframes pulse {
+  from { box-shadow: 0 0 4px rgba(120,120,120,0.4); }
+  to { box-shadow: 0 0 12px rgba(120,120,120,0.8); }
+}
+
 canvas {
   display: block;
   margin: 0 auto;
@@ -125,4 +137,20 @@ canvas {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+#shop {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  min-width: 200px;
+  z-index: 10;
+}
+
+.shopItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }

@@ -21,6 +21,12 @@ const enemyHpSpan = document.getElementById('enemyHp');
 const buildTurretBtn = document.getElementById('buildTurret');
 const buildWallBtn = document.getElementById('buildWall');
 const sendWaveBtn = document.getElementById('sendWave');
+const shopBtn = document.getElementById('shopBtn');
+const shopModal = document.getElementById('shop');
+const upgSoldiersBtn = document.getElementById('upgSoldiers');
+const upgSpeedBtn = document.getElementById('upgSpeed');
+const upgExtraBtn = document.getElementById('upgExtra');
+const closeShopBtn = document.getElementById('closeShop');
 const canvas = document.getElementById('game');
 const statsPanel = document.getElementById('statsPanel');
 const playerNameDiv = document.getElementById('playerName');
@@ -31,6 +37,7 @@ startBtn.id = 'startGame';
 
 let role = null;
 let game = null;
+let waveCooldown = false;
 
 hostBtn.addEventListener('click', () => {
   role = 'host';
@@ -111,7 +118,10 @@ function updateHud() {
   enemyHpSpan.textContent = `❤️${Math.floor(game.baseHp[enemyRole])}`;
   toggleAffordable(buildTurretBtn, game.money >= 15);
   toggleAffordable(buildWallBtn, game.money >= 10);
-  toggleAffordable(sendWaveBtn, game.money >= 20);
+  toggleAffordable(sendWaveBtn, game.money >= 20 && !waveCooldown);
+  toggleAffordable(upgSoldiersBtn, game.money >= +upgSoldiersBtn.dataset.cost);
+  toggleAffordable(upgSpeedBtn, game.money >= +upgSpeedBtn.dataset.cost);
+  toggleAffordable(upgExtraBtn, game.money >= +upgExtraBtn.dataset.cost);
   requestAnimationFrame(updateHud);
 }
 
@@ -125,6 +135,27 @@ buildTurretBtn.addEventListener('click', () => {
 });
 buildWallBtn.addEventListener('click', () => {
   if (game) game.mode = 'wall';
+});
+shopBtn.addEventListener('click', () => {
+  shopModal.classList.toggle('hidden');
+});
+closeShopBtn.addEventListener('click', () => {
+  shopModal.classList.add('hidden');
+});
+upgSoldiersBtn.addEventListener('click', () => {
+  if (game && game.purchaseUpgrade('soldier')) {
+    socket.emit('upgrade', { type: 'soldier' });
+  }
+});
+upgSpeedBtn.addEventListener('click', () => {
+  if (game && game.purchaseUpgrade('speed')) {
+    socket.emit('upgrade', { type: 'speed' });
+  }
+});
+upgExtraBtn.addEventListener('click', () => {
+  if (game && game.purchaseUpgrade('extra')) {
+    socket.emit('upgrade', { type: 'extra' });
+  }
 });
 
 canvas.addEventListener('click', (e) => {
@@ -198,11 +229,24 @@ window.addEventListener('keydown', (e) => {
 });
 
 sendWaveBtn.addEventListener('click', () => {
-  if (game) {
-    const spawned = game.spawnWave();
-    if (spawned) socket.emit('spawnWave');
+  if (waveCooldown || !game) return;
+  const spawned = game.spawnWave();
+  if (spawned) {
+    socket.emit('spawnWave');
+    startWaveCooldown();
   }
 });
+
+function startWaveCooldown() {
+  waveCooldown = true;
+  sendWaveBtn.disabled = true;
+  sendWaveBtn.classList.add('cooldown');
+  setTimeout(() => {
+    waveCooldown = false;
+    sendWaveBtn.disabled = false;
+    sendWaveBtn.classList.remove('cooldown');
+  }, 6000);
+}
 
 socket.on('spawnWave', ({ owner, color }) => {
   if (!game) return;
@@ -221,6 +265,11 @@ socket.on('placeWall', ({ owner, x, y, color }) => {
   if (owner !== role) {
     game.tryPlace(x, y, owner, color, 'wall');
   }
+});
+
+socket.on('upgrade', ({ owner, type }) => {
+  if (!game) return;
+  if (owner !== role) game.applyUpgrade(owner, type);
 });
 
 econRateInput.addEventListener('input', () => {

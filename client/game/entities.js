@@ -1,13 +1,16 @@
 export class Soldier {
-  constructor(owner, path, color, direction) {
+  constructor(owner, path, color, direction, stats = { speed: 40, hp: 5, atk: 1 }) {
     this.owner = owner;
     this.path = path;
     this.color = color;
-    this.t = direction === 'up' ? 1 : 0; // 0 start at top? Wait host bottom: host direction up, client direction down
+    this.t = direction === 'up' ? 1 : 0;
     this.direction = direction; // 'up' or 'down'
-    this.speed = 40; // pixels per second
-    this.maxHp = 5;
+    this.baseSpeed = stats.speed;
+    this.speed = this.baseSpeed;
+    this.maxHp = stats.hp;
     this.hp = this.maxHp;
+    this.dmg = stats.atk;
+    this.wallDmg = stats.atk + 1;
     this.alive = true;
   }
   update(dt) {

@@ -30,6 +30,11 @@ export class Game {
     this.preview = null;
     this.camera = { x: 0, y: 0, scale: 1 };
     this.cooldowns = { wave: 0, turret: 0, wall: 0 };
+    this.stats = {
+      host: { hp: 5, atk: 1, speed: 40, wave: 3 },
+      client: { hp: 5, atk: 1, speed: 40, wave: 3 }
+    };
+    this.shopCosts = { soldier: 30, speed: 30, extra: 30 };
     this.images = {
       turret: new Image(),
       wall: new Image(),
@@ -62,20 +67,20 @@ export class Game {
     this.soldiers.forEach(s => {
       const target = this.walls.find(w => w.owner !== s.owner && dist(w, s) < this.cellSize / 2);
       if (target) {
-        target.hp -= 2 * dt;
+        target.hp -= s.wallDmg * dt;
         if (target.hp <= 0) this.walls.splice(this.walls.indexOf(target), 1);
         s.speed = 0;
       } else {
-        s.speed = 40;
+        s.speed = s.baseSpeed;
       }
     });
     // soldiers reaching base
     this.soldiers.forEach(s => {
       if (s.direction === 'up' && s.t <= 0) {
-        this.baseHp.client -= 1;
+        this.baseHp.client -= s.dmg;
         s.alive = false;
       } else if (s.direction === 'down' && s.t >= 1) {
-        this.baseHp.host -= 1;
+        this.baseHp.host -= s.dmg;
         s.alive = false;
       }
     });
@@ -268,18 +273,39 @@ export class Game {
   spawnWave(owner = this.role, color = this.color) {
     const now = performance.now() / 1000;
     if (owner === this.role) {
-      if (this.money < 20 || now - this.cooldowns.wave < 1) return false;
+      if (this.money < 20 || now - this.cooldowns.wave < 6) return false;
       this.money -= 20;
       this.cooldowns.wave = now;
     }
     const dir = owner === 'host' ? 'up' : 'down';
+    const stats = this.stats[owner];
     this.paths.forEach(path => {
-      for (let i = 0; i < 3; i++) {
-        const s = new Soldier(owner, path, color, dir);
+      for (let i = 0; i < stats.wave; i++) {
+        const s = new Soldier(owner, path, color, dir, stats);
         s.t += (i * 0.02) * (dir === 'up' ? -1 : 1);
         this.soldiers.push(s);
       }
     });
+    return true;
+  }
+
+  applyUpgrade(owner, type) {
+    const s = this.stats[owner];
+    if (type === 'soldier') {
+      s.hp += 5;
+      s.atk += 1;
+    } else if (type === 'speed') {
+      s.speed += 20;
+    } else if (type === 'extra') {
+      s.wave += 1;
+    }
+  }
+
+  purchaseUpgrade(type) {
+    const cost = this.shopCosts[type];
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.applyUpgrade(this.role, type);
     return true;
   }
 }

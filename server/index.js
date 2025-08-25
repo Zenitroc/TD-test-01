@@ -64,6 +64,12 @@ io.on('connection', (socket) => {
     io.emit('placeWall', { owner: player.role, x, y, color: player.color });
   });
 
+  socket.on('upgrade', ({ type }) => {
+    const player = players[socket.id];
+    if (!player) return;
+    io.emit('upgrade', { owner: player.role, type });
+  });
+
   socket.on('disconnect', () => {
     if (socket.id === hostId) hostId = null;
     if (socket.id === clientId) clientId = null;
