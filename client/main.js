@@ -125,6 +125,7 @@ const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
 socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName, mapType, towerCount, econRate, gfxMode }) => {
   menu.classList.add('hidden');
+  hostConfig.classList.add('hidden');
   hud.classList.remove('hidden');
   canvas.width = GAME_WIDTH;
   canvas.height = GAME_HEIGHT;
