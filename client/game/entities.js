@@ -29,18 +29,23 @@ export class Turret {
     this.color = color;
     this.range = 60;
     this.cooldown = 0;
+    this.level = 1;
   }
   update(dt, soldiers) {
     if (this.cooldown > 0) {
       this.cooldown -= dt;
-      return null;
+      return [];
     }
-    const target = soldiers.find(s => s.owner !== this.owner && s.alive && dist(s, this) < this.range);
-    if (target) {
+    const count = this.level >= 3 ? 2 : 1;
+    const targets = soldiers
+      .filter(s => s.owner !== this.owner && s.alive && dist(s, this) < this.range)
+      .slice(0, count);
+    if (targets.length) {
       this.cooldown = 0.5; // fire every 0.5s
-      return new Bullet(this.x, this.y, target, 5, this.color);
+      const dmg = 5 * (this.level >= 2 ? 2 : 1);
+      return targets.map(t => new Bullet(this.x, this.y, t, dmg, this.color));
     }
-    return null;
+    return [];
   }
 }
 
@@ -55,13 +60,15 @@ export class Wall {
 }
 
 export class Bullet {
-  constructor(x, y, target, dmg, color) {
+  constructor(owner, x, y, target, dmg, color) {
+    this.owner = owner;
     this.x = x; this.y = y;
     this.target = target;
     this.dmg = dmg;
     this.color = color;
     this.speed = 200;
     this.alive = true;
+    this.hit = false;
   }
   update(dt) {
     if (!this.target.alive) { this.alive = false; return; }
@@ -71,6 +78,7 @@ export class Bullet {
     const step = this.speed * dt;
     if (d <= step) {
       this.target.hp -= this.dmg;
+      this.hit = true;
       if (this.target.hp <= 0) this.target.alive = false;
       this.alive = false;
     } else {

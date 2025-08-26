@@ -1,7 +1,7 @@
 {
-  "name": "td-test-01",
+  "name": "bizzare-defense",
   "version": "1.0.0",
-  "description": "TD 2D",
+  "description": "Juego de tower defense PvP 2D",
   "main": "index.js",
   "scripts": {
     "test": "echo \"No tests\"",

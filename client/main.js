@@ -9,6 +9,7 @@ const towerSelect = document.getElementById('towerCount');
 const econRateInput = document.getElementById('econRate');
 const econLabel = document.getElementById('econLabel');
 const gfxModeSelect = document.getElementById('gfxMode');
+const musicInput = document.getElementById('musicUrl');
 const hostBtn = document.getElementById('hostBtn');
 const joinBtn = document.getElementById('joinBtn');
 const instructionsBtn = document.getElementById('instructionsBtn');
@@ -19,7 +20,9 @@ const hostConfig = document.getElementById('hostConfig');
 const hud = document.getElementById('hud');
 const ipDisplay = document.getElementById('ipDisplay');
 const statusDiv = document.getElementById('status');
+
 const hostStatusDiv = document.getElementById('hostStatus');
+
 const moneySpan = document.getElementById('money');
 const baseHpSpan = document.getElementById('baseHp');
 const enemyHpSpan = document.getElementById('enemyHp');
@@ -39,6 +42,10 @@ const enemyNameDiv = document.getElementById('enemyName');
 const startBtn = document.createElement('button');
 startBtn.textContent = 'Iniciar partida';
 startBtn.id = 'startGame';
+const endScreen = document.getElementById('endScreen');
+const resultMsg = document.getElementById('resultMsg');
+const finalStats = document.getElementById('finalStats');
+const fwCanvas = document.getElementById('fireworks');
 
 
 let role = null;
@@ -59,7 +66,9 @@ function hostGame() {
   towerSelect.disabled = false;
   econRateInput.disabled = false;
   gfxModeSelect.disabled = false;
+
 }
+
 
 function joinGame() {
   role = 'client';
@@ -73,6 +82,7 @@ function joinGame() {
   towerSelect.disabled = true;
   econRateInput.disabled = true;
   gfxModeSelect.disabled = true;
+
 }
 
 function openInstructions() {
@@ -90,6 +100,7 @@ joinBtn.addEventListener('click', joinGame);
 instructionsBtn.addEventListener('click', openInstructions);
 closeInstructionsBtn.addEventListener('click', closeInstructions);
 
+
 socket.on('ip', (ip) => {
   ipDisplay.textContent = `IP Host: ${ip}`;
 });
@@ -104,7 +115,7 @@ socket.on('lobbyState', ({ hostConnected, clientConnected, host, client }) => {
       hostConfig.appendChild(startBtn);
       startBtn.disabled = false;
       startBtn.addEventListener('click', () => {
-        socket.emit('startGame', { mapType: mapTypeSelect.value, towerCount: +towerSelect.value, econRate: +econRateInput.value, gfxMode: gfxModeSelect.value });
+        socket.emit('startGame', { mapType: mapTypeSelect.value, towerCount: +towerSelect.value, econRate: +econRateInput.value, gfxMode: gfxModeSelect.value, musicUrl: musicInput.value });
         startBtn.disabled = true;
       });
     }
@@ -123,10 +134,13 @@ socket.on('lobbyState', ({ hostConnected, clientConnected, host, client }) => {
 
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
-socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName, mapType, towerCount, econRate, gfxMode }) => {
+socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName, mapType, towerCount, econRate, gfxMode, musicUrl }) => {
   menu.classList.add('hidden');
+
   hostConfig.classList.add('hidden');
+
   hud.classList.remove('hidden');
+  canvas.classList.remove('hidden');
   canvas.width = GAME_WIDTH;
   canvas.height = GAME_HEIGHT;
   game = new Game(canvas, role, colorInput.value, hostColor, clientColor, hostName, clientName, towerCount, econRate, gfxMode);
@@ -134,8 +148,15 @@ socket.on('startGame', ({ seed, hostColor, clientColor, hostName, clientName, ma
   playerNameDiv.style.color = game.color;
   enemyNameDiv.textContent = game.enemyName;
   enemyNameDiv.style.color = game.enemyColor;
+  game.onGameOver = onGameOver;
   game.start(seed, mapType);
   requestAnimationFrame(updateHud);
+  if (musicUrl) {
+    const audio = new Audio(musicUrl);
+    audio.loop = true;
+    audio.play().catch(() => {});
+    window._bgm = audio;
+  }
 });
 
 function updateHud() {
@@ -227,10 +248,17 @@ canvas.addEventListener('wheel', (e) => {
 let dragging = false;
 let lastX = 0, lastY = 0;
 canvas.addEventListener('mousedown', (e) => {
-  if (e.button === 2) {
+  if (e.button === 1) {
+    e.preventDefault();
     dragging = true;
     lastX = e.clientX;
     lastY = e.clientY;
+    } else if (e.button === 2 && game) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left - game.camera.x) / game.camera.scale;
+    const y = (e.clientY - rect.top - game.camera.y) / game.camera.scale;
+    const upgraded = game.upgradeTurret(x, y);
+    if (upgraded) socket.emit('upgradeTurret', { x, y });
   }
 });
 window.addEventListener('mousemove', (e) => {
@@ -243,9 +271,20 @@ window.addEventListener('mousemove', (e) => {
   }
 });
 window.addEventListener('mouseup', (e) => {
-  if (e.button === 2) dragging = false;
+  if (e.button === 1) dragging = false;
 });
-canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (!game) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left - game.camera.x) / game.camera.scale;
+  const y = (e.clientY - rect.top - game.camera.y) / game.camera.scale;
+  const gx = Math.floor(x / game.cellSize) * game.cellSize + game.cellSize / 2;
+  const gy = Math.floor(y / game.cellSize) * game.cellSize + game.cellSize / 2;
+  if (game.upgradeTurret(gx, gy)) {
+    socket.emit('upgradeTurret', { x: gx, y: gy });
+  }
+});
 
 window.addEventListener('keydown', (e) => {
   if (!game) return;
@@ -297,7 +336,15 @@ socket.on('placeWall', ({ owner, x, y, color }) => {
 
 socket.on('upgrade', ({ owner, type }) => {
   if (!game) return;
-  if (owner !== role) game.applyUpgrade(owner, type);
+  if (owner !== role) {
+    game.applyUpgrade(owner, type);
+    game.metrics[owner].spent += game.shopCosts[type];
+  }
+});
+
+socket.on('upgradeTurret', ({ owner, x, y }) => {
+  if (!game) return;
+  if (owner !== role) game.upgradeTurret(x, y, owner);
 });
 
 econRateInput.addEventListener('input', () => {
@@ -325,4 +372,74 @@ function makeDraggable(el) {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   });
+}
+
+function onGameOver(winner) {
+  hud.classList.add('hidden');
+  endScreen.classList.remove('hidden');
+  resultMsg.textContent = winner === role ? 'Has ganado' : 'Has perdido';
+  resultMsg.style.color = winner === role ? '#2ecc71' : '#e74c3c';
+  const my = game.metrics[role];
+  const enemyRole = role === 'host' ? 'client' : 'host';
+  const enemy = game.metrics[enemyRole];
+  const duration = ((performance.now() - game.startTime) / 1000).toFixed(1);
+  finalStats.innerHTML = `
+    <h3 style="color:${game.color}">${game.playerName}</h3>
+    <p>💰 Recaudado: ${Math.floor(my.earned)}</p>
+    <p>💸 Gastado: ${Math.floor(my.spent)}</p>
+    <p>☠️ Enemigos: ${my.kills}</p>
+    <p>📦 Oleadas: ${my.waves}</p>
+    <p>🧱 Muros: ${my.walls}</p>
+    <h3 style="color:${game.enemyColor}">${game.enemyName}</h3>
+    <p>💰 Recaudado: ${Math.floor(enemy.earned)}</p>
+    <p>💸 Gastado: ${Math.floor(enemy.spent)}</p>
+    <p>☠️ Enemigos: ${enemy.kills}</p>
+    <p>📦 Oleadas: ${enemy.waves}</p>
+    <p>🧱 Muros: ${enemy.walls}</p>
+    <p>⏱️ Duración: ${duration}s</p>
+  `;
+  if (winner === role) startFireworks();
+}
+
+function startFireworks() {
+  const ctx = fwCanvas.getContext('2d');
+  fwCanvas.width = window.innerWidth;
+  fwCanvas.height = window.innerHeight;
+  const particles = [];
+  function burst() {
+    for (let i = 0; i < 40; i++) {
+      particles.push({
+        x: Math.random() * fwCanvas.width,
+        y: Math.random() * fwCanvas.height * 0.5,
+        vx: (Math.random() - 0.5) * 200,
+        vy: (Math.random() - 0.5) * 200,
+        life: 2,
+        color: `hsl(${Math.random() * 360},100%,60%)`
+      });
+    }
+  }
+  let last = performance.now();
+  function loop(time) {
+    const dt = (time - last) / 1000;
+    last = time;
+    ctx.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
+    particles.forEach(p => {
+      p.life -= dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 60 * dt;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 4, 4);
+    });
+    for (let i = particles.length - 1; i >= 0; i--) {
+      if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+    if (particles.length > 0) requestAnimationFrame(loop);
+  }
+  burst();
+  const interval = setInterval(() => {
+    burst();
+    if (particles.length > 200) clearInterval(interval);
+  }, 500);
+  requestAnimationFrame(loop);
 }

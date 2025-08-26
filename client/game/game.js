@@ -35,16 +35,23 @@ export class Game {
       client: { hp: 5, atk: 1, speed: 40, wave: 3 }
     };
     this.shopCosts = { soldier: 30, speed: 30, extra: 30 };
-    this.images = {
-      turret: new Image(),
-      wall: new Image(),
-      soldier: new Image(),
-      ground: new Image()
+    this.metrics = {
+      host: { earned: 20, spent: 0, kills: 0, waves: 0, walls: 0 },
+      client: { earned: 20, spent: 0, kills: 0, waves: 0, walls: 0 }
     };
-    this.images.turret.src = 'sprites/turret.svg';
-    this.images.wall.src = 'sprites/wall.svg';
-    this.images.soldier.src = 'sprites/soldier.svg';
-    this.images.ground.src = 'sprites/ground.svg';
+    this.gameOver = false;
+    this.winner = null;
+    this.images = {
+      turret: loadSprite('turret'),
+      wall: loadSprite('wall'),
+      soldier: loadSprite('soldier'),
+      ground: loadSprite('ground')
+    };
+    loadSprite(this.images.turret, 'turret');
+    loadSprite(this.images.wall, 'wall');
+    loadSprite(this.images.soldier, 'soldier');
+    loadSprite(this.images.ground, 'ground');
+    this.upgradeCost = 20;
   }
 
   generate(seed, mapType, towerCount) {
@@ -55,13 +62,22 @@ export class Game {
     const dt = (time - this.lastTime) / 1000;
     this.lastTime = time;
     this.money += dt * this.econRate; // + econ per second
+    this.metrics.host.earned += dt * this.econRate;
+    this.metrics.client.earned += dt * this.econRate;
     this.soldiers.forEach(s => s.alive && s.update(dt));
     this.soldiers = this.soldiers.filter(s => s.alive);
     this.turrets.forEach(t => {
-      const b = t.update(dt, this.soldiers);
-      if (b) this.bullets.push(b);
+      const bullets = t.update(dt, this.soldiers);
+      if (bullets.length) this.bullets.push(...bullets);
     });
-    this.bullets.forEach(b => b.alive && b.update(dt));
+    this.bullets.forEach(b => {
+      if (b.alive) b.update(dt);
+      if (!b.alive && b.hit && !b.target.alive) {
+        this.metrics[b.owner].kills += 1;
+        this.metrics[b.owner].earned += 1;
+        if (b.owner === this.role) this.money += 1;
+      }
+    });
     this.bullets = this.bullets.filter(b => b.alive);
     // soldiers vs walls
     this.soldiers.forEach(s => {
@@ -84,6 +100,10 @@ export class Game {
         s.alive = false;
       }
     });
+    if (this.baseHp.host <= 0 || this.baseHp.client <= 0) {
+      this.gameOver = true;
+      this.winner = this.baseHp.host <= 0 ? 'client' : 'host';
+    }
   }
 
   render() {
@@ -165,6 +185,7 @@ export class Game {
         ctx.arc(t.x, t.y, this.cellSize / 2 - 2, 0, Math.PI * 2);
         ctx.fill();
       }
+      drawLevelBar(ctx, t.x, t.y - this.cellSize / 2 - 8, this.cellSize, t.level);
     });
 
     // bullets
@@ -204,12 +225,17 @@ export class Game {
   gameLoop = (time) => {
     this.update(time);
     this.render();
-    requestAnimationFrame(this.gameLoop);
+    if (this.gameOver) {
+      if (this.onGameOver) this.onGameOver(this.winner);
+    } else {
+      requestAnimationFrame(this.gameLoop);
+    }
   }
 
   start(seed, mapType) {
     this.generate(seed, mapType, this.towerCount);
-    this.lastTime = performance.now();
+    this.startTime = performance.now();
+    this.lastTime = this.startTime;
     requestAnimationFrame(this.gameLoop);
   }
 
@@ -223,10 +249,19 @@ export class Game {
         if (this.money < 15 || now - this.cooldowns.turret < 0.5) return false;
         this.money -= 15;
         this.cooldowns.turret = now;
+        this.metrics[owner].spent += 15;
       } else if (type === 'wall') {
         if (this.money < 10 || now - this.cooldowns.wall < 0.5) return false;
         this.money -= 10;
         this.cooldowns.wall = now;
+        this.metrics[owner].spent += 10;
+        this.metrics[owner].walls += 1;
+      }
+    } else {
+      if (type === 'turret') this.metrics[owner].spent += 15;
+      if (type === 'wall') {
+        this.metrics[owner].spent += 10;
+        this.metrics[owner].walls += 1;
       }
     }
     if (type === 'turret') this.turrets.push(new Turret(owner, gx, gy, color));
@@ -276,7 +311,11 @@ export class Game {
       if (this.money < 20 || now - this.cooldowns.wave < 6) return false;
       this.money -= 20;
       this.cooldowns.wave = now;
+      this.metrics[owner].spent += 20;
+    } else {
+      this.metrics[owner].spent += 20;
     }
+    this.metrics[owner].waves += 1;
     const dir = owner === 'host' ? 'up' : 'down';
     const stats = this.stats[owner];
     this.paths.forEach(path => {
@@ -287,6 +326,17 @@ export class Game {
       }
     });
     return true;
+  }
+
+  upgradeTurret(x, y, owner = this.role) {
+    const gx = Math.floor(x / this.cellSize) * this.cellSize + this.cellSize / 2;
+    const gy = Math.floor(y / this.cellSize) * this.cellSize + this.cellSize / 2;
+    const turret = this.turrets.find(t => t.x === gx && t.y === gy && t.owner === owner);
+    if (turret && turret.level < 3) {
+      turret.level++;
+      return true;
+    }
+    return false;
   }
 
   applyUpgrade(owner, type) {
@@ -305,7 +355,20 @@ export class Game {
     const cost = this.shopCosts[type];
     if (this.money < cost) return false;
     this.money -= cost;
+    this.metrics[this.role].spent += cost;
     this.applyUpgrade(this.role, type);
+    return true;
+  }
+
+  upgradeTurret(gx, gy, owner = this.role) {
+    const t = this.turrets.find(tt => tt.x === gx && tt.y === gy && tt.owner === owner);
+    if (!t || t.level >= 3) return false;
+    if (owner === this.role) {
+      if (this.money < this.upgradeCost) return false;
+      this.money -= this.upgradeCost;
+      this.metrics[owner].spent += this.upgradeCost;
+    }
+    t.level += 1;
     return true;
   }
 }
@@ -324,4 +387,31 @@ function drawHpBar(ctx, x, y, width, ratio) {
   ctx.fillRect(x - width / 2, y, width, 4);
   ctx.fillStyle = `hsl(${ratio * 120}, 100%, 40%)`;
   ctx.fillRect(x - width / 2, y, width * ratio, 4);
+}
+
+function drawLevelBar(ctx, x, y, width, level, max = 3) {
+  const segment = width / max;
+  ctx.strokeStyle = '#000';
+  ctx.strokeRect(x - width / 2, y, width, 4);
+  ctx.fillStyle = '#ffeb3b';
+  ctx.fillRect(x - width / 2, y, segment * level, 4);
+  for (let i = 1; i < max; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x - width / 2 + segment * i, y);
+    ctx.lineTo(x - width / 2 + segment * i, y + 4);
+    ctx.stroke();
+  }
+}
+
+function loadSprite(name) {
+  const img = new Image();
+  const exts = ['png', 'jpg', 'svg'];
+  let i = 0;
+  function tryLoad() {
+    if (i >= exts.length) return;
+    img.src = `sprites/${name}.${exts[i++]}`;
+  }
+  img.onerror = tryLoad;
+  tryLoad();
+  return img;
 }
