@@ -23,24 +23,35 @@ export class Soldier {
 }
 
 export class Turret {
-  constructor(owner, x, y, color) {
+  constructor(owner, x, y, color, stats = { cooldown: 0.5, shots: 1 }) {
     this.owner = owner;
     this.x = x; this.y = y;
     this.color = color;
     this.range = 60;
     this.cooldown = 0;
+    this.fireCooldown = stats.cooldown;
+    this.shots = stats.shots;
+    this.maxLife = 30;
+    this.life = this.maxLife;
+    this.alive = true;
   }
   update(dt, soldiers) {
+    this.life -= dt;
+    if (this.life <= 0) { this.alive = false; return []; }
     if (this.cooldown > 0) {
       this.cooldown -= dt;
-      return null;
+      return [];
     }
-    const target = soldiers.find(s => s.owner !== this.owner && s.alive && dist(s, this) < this.range);
-    if (target) {
-      this.cooldown = 0.5; // fire every 0.5s
-      return new Bullet(this.x, this.y, target, 5, this.color);
+    const targets = soldiers.filter(s => s.owner !== this.owner && s.alive && dist(s, this) < this.range);
+    if (targets.length) {
+      this.cooldown = this.fireCooldown;
+      const bullets = [];
+      for (let i = 0; i < Math.min(this.shots, targets.length); i++) {
+        bullets.push(new Bullet(this.x, this.y, targets[i], 5, this.color, this.owner));
+      }
+      return bullets;
     }
-    return null;
+    return [];
   }
 }
 
@@ -55,28 +66,30 @@ export class Wall {
 }
 
 export class Bullet {
-  constructor(x, y, target, dmg, color) {
+  constructor(x, y, target, dmg, color, owner) {
     this.x = x; this.y = y;
     this.target = target;
     this.dmg = dmg;
     this.color = color;
+    this.owner = owner;
     this.speed = 200;
     this.alive = true;
   }
   update(dt) {
-    if (!this.target.alive) { this.alive = false; return; }
+    if (!this.target.alive) { this.alive = false; return false; }
     const dx = this.target.x - this.x;
     const dy = this.target.y - this.y;
     const d = Math.hypot(dx, dy);
     const step = this.speed * dt;
     if (d <= step) {
       this.target.hp -= this.dmg;
-      if (this.target.hp <= 0) this.target.alive = false;
+      if (this.target.hp <= 0) { this.target.alive = false; this.alive = false; return true; }
       this.alive = false;
     } else {
       this.x += (dx / d) * step;
       this.y += (dy / d) * step;
     }
+    return false;
   }
 }
 

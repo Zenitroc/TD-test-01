@@ -9,7 +9,7 @@ export class Game {
     this.color = color;
     this.hostColor = hostColor;
     this.clientColor = clientColor;
-    this.enemyColor = role === 'host' ? clientColor : hostColor;
+     this.enemyColor = role === 'host' ? clientColor : hostColor;
     this.hostName = hostName;
     this.clientName = clientName;
     this.playerName = role === 'host' ? hostName : clientName;
@@ -34,7 +34,12 @@ export class Game {
       host: { hp: 5, atk: 1, speed: 40, wave: 3 },
       client: { hp: 5, atk: 1, speed: 40, wave: 3 }
     };
-    this.shopCosts = { soldier: 30, speed: 30, extra: 30 };
+    this.turretStats = {
+      host: { cooldown: 0.5, shots: 1 },
+      client: { cooldown: 0.5, shots: 1 }
+    };
+    this.shopCosts = { soldier: 30, speed: 30, extra: 30, turretSpeed: 30, turretExtra: 30 };
+    this.gameOver = false;
     this.images = {
       turret: new Image(),
       wall: new Image(),
@@ -52,23 +57,33 @@ export class Game {
   }
 
   update(time) {
+    if (this.gameOver) return;
     const dt = (time - this.lastTime) / 1000;
     this.lastTime = time;
     this.money += dt * this.econRate; // + econ per second
     this.soldiers.forEach(s => s.alive && s.update(dt));
     this.soldiers = this.soldiers.filter(s => s.alive);
     this.turrets.forEach(t => {
-      const b = t.update(dt, this.soldiers);
-      if (b) this.bullets.push(b);
+      const bullets = t.update(dt, this.soldiers);
+      if (bullets.length) this.bullets.push(...bullets);
     });
-    this.bullets.forEach(b => b.alive && b.update(dt));
+    this.turrets = this.turrets.filter(t => t.alive);
+    this.bullets.forEach(b => {
+      if (b.alive) {
+        const killed = b.update(dt);
+        if (killed && b.owner === this.role) this.money += 3;
+      }
+    });
     this.bullets = this.bullets.filter(b => b.alive);
     // soldiers vs walls
     this.soldiers.forEach(s => {
       const target = this.walls.find(w => w.owner !== s.owner && dist(w, s) < this.cellSize / 2);
       if (target) {
         target.hp -= s.wallDmg * dt;
-        if (target.hp <= 0) this.walls.splice(this.walls.indexOf(target), 1);
+        if (target.hp <= 0) {
+          this.walls.splice(this.walls.indexOf(target), 1);
+          if (s.owner === this.role) this.money += 2;
+        }
         s.speed = 0;
       } else {
         s.speed = s.baseSpeed;
@@ -84,6 +99,9 @@ export class Game {
         s.alive = false;
       }
     });
+    if (this.baseHp.host <= 0 || this.baseHp.client <= 0) {
+      this.gameOver = true;
+    }
   }
 
   render() {
@@ -151,6 +169,9 @@ export class Game {
       } else {
         ctx.fillStyle = w.color;
         ctx.fillRect(w.x - this.cellSize / 2, w.y - this.cellSize / 2, this.cellSize, this.cellSize);
+        ctx.strokeStyle = darkenColor(w.color);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(w.x - this.cellSize / 2, w.y - this.cellSize / 2, this.cellSize, this.cellSize);
       }
       drawHpBar(ctx, w.x, w.y - this.cellSize / 2 - 6, this.cellSize, w.hp / w.maxHp);
     });
@@ -164,7 +185,11 @@ export class Game {
         ctx.beginPath();
         ctx.arc(t.x, t.y, this.cellSize / 2 - 2, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = darkenColor(t.color);
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
+      drawTimerBar(ctx, t.x, t.y + this.cellSize / 2 + 2, this.cellSize, t.life / t.maxLife);
     });
 
     // bullets
@@ -180,8 +205,17 @@ export class Game {
       if (this.textureMode === 'textures' && this.images.soldier.complete) {
         ctx.drawImage(this.images.soldier, s.x - this.cellSize / 2, s.y - this.cellSize / 2, this.cellSize, this.cellSize);
       } else {
+        ctx.save();
+        if (s.owner !== this.role) {
+          ctx.shadowColor = 'rgba(0,0,0,0.5)';
+          ctx.shadowBlur = 5;
+        }
         ctx.fillStyle = s.color;
         ctx.fillRect(s.x - this.cellSize / 4, s.y - this.cellSize / 4, this.cellSize / 2, this.cellSize / 2);
+        ctx.strokeStyle = darkenColor(s.color);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(s.x - this.cellSize / 4, s.y - this.cellSize / 4, this.cellSize / 2, this.cellSize / 2);
+        ctx.restore();
       }
       drawHpBar(ctx, s.x, s.y - this.cellSize / 2 - 4, this.cellSize / 2, s.hp / s.maxHp);
     });
@@ -199,6 +233,16 @@ export class Game {
     }
 
     ctx.restore();
+    if (this.gameOver) {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.font = '48px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const text = this.baseHp[this.role] <= 0 ? 'Has perdido' : 'Has ganado';
+      ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2);
+    }
   }
 
   gameLoop = (time) => {
@@ -229,7 +273,7 @@ export class Game {
         this.cooldowns.wall = now;
       }
     }
-    if (type === 'turret') this.turrets.push(new Turret(owner, gx, gy, color));
+    if (type === 'turret') this.turrets.push(new Turret(owner, gx, gy, color, this.turretStats[owner]));
     if (type === 'wall') this.walls.push(new Wall(owner, gx, gy, color));
     return true;
   }
@@ -298,6 +342,14 @@ export class Game {
       s.speed += 20;
     } else if (type === 'extra') {
       s.wave += 1;
+    } else if (type === 'turretSpeed') {
+      const ts = this.turretStats[owner];
+      ts.cooldown = Math.max(0.1, ts.cooldown * 0.9);
+      this.turrets.filter(t => t.owner === owner).forEach(t => t.fireCooldown = ts.cooldown);
+    } else if (type === 'turretExtra') {
+      const ts = this.turretStats[owner];
+      ts.shots += 1;
+      this.turrets.filter(t => t.owner === owner).forEach(t => t.shots = ts.shots);
     }
   }
 
@@ -324,4 +376,23 @@ function drawHpBar(ctx, x, y, width, ratio) {
   ctx.fillRect(x - width / 2, y, width, 4);
   ctx.fillStyle = `hsl(${ratio * 120}, 100%, 40%)`;
   ctx.fillRect(x - width / 2, y, width * ratio, 4);
+}
+
+function drawTimerBar(ctx, x, y, width, ratio) {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x - width / 2, y, width, 4);
+  ctx.fillStyle = '#3498db';
+  ctx.fillRect(x - width / 2, y, width * ratio, 4);
+}
+
+function darkenColor(hex, factor = 0.8) {
+  const h = hex.replace('#', '');
+  const bigint = parseInt(h, 16);
+  let r = (bigint >> 16) & 255;
+  let g = (bigint >> 8) & 255;
+  let b = bigint & 255;
+  r = Math.max(0, Math.floor(r * factor));
+  g = Math.max(0, Math.floor(g * factor));
+  b = Math.max(0, Math.floor(b * factor));
+  return `rgb(${r},${g},${b})`;
 }

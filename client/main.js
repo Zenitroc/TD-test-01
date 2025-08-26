@@ -31,6 +31,8 @@ const shopModal = document.getElementById('shop');
 const upgSoldiersBtn = document.getElementById('upgSoldiers');
 const upgSpeedBtn = document.getElementById('upgSpeed');
 const upgExtraBtn = document.getElementById('upgExtra');
+const upgTurretSpeedBtn = document.getElementById('upgTurretSpeed');
+const upgTurretExtraBtn = document.getElementById('upgTurretExtra');
 const closeShopBtn = document.getElementById('closeShop');
 const canvas = document.getElementById('game');
 const statsPanel = document.getElementById('statsPanel');
@@ -150,6 +152,8 @@ function updateHud() {
   toggleAffordable(upgSoldiersBtn, game.money >= +upgSoldiersBtn.dataset.cost);
   toggleAffordable(upgSpeedBtn, game.money >= +upgSpeedBtn.dataset.cost);
   toggleAffordable(upgExtraBtn, game.money >= +upgExtraBtn.dataset.cost);
+  toggleAffordable(upgTurretSpeedBtn, game.money >= +upgTurretSpeedBtn.dataset.cost);
+  toggleAffordable(upgTurretExtraBtn, game.money >= +upgTurretExtraBtn.dataset.cost);
   requestAnimationFrame(updateHud);
 }
 
@@ -183,6 +187,16 @@ upgSpeedBtn.addEventListener('click', () => {
 upgExtraBtn.addEventListener('click', () => {
   if (game && game.purchaseUpgrade('extra')) {
     socket.emit('upgrade', { type: 'extra' });
+  }
+});
+upgTurretSpeedBtn.addEventListener('click', () => {
+  if (game && game.purchaseUpgrade('turretSpeed')) {
+    socket.emit('upgrade', { type: 'turretSpeed' });
+  }
+});
+upgTurretExtraBtn.addEventListener('click', () => {
+  if (game && game.purchaseUpgrade('turretExtra')) {
+    socket.emit('upgrade', { type: 'turretExtra' });
   }
 });
 
