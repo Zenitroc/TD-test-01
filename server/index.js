@@ -8,7 +8,6 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
-
 // serve static files from client directory
 app.use(express.static('client'));
 
@@ -33,7 +32,12 @@ io.on('connection', (socket) => {
       clientId = socket.id;
     }
     players[socket.id] = { role, name, color };
-    io.emit('lobbyState', { hostConnected: !!hostId, clientConnected: !!clientId });
+    io.emit('lobbyState', {
+      hostConnected: !!hostId,
+      clientConnected: !!clientId,
+      host: hostId ? { name: players[hostId].name, color: players[hostId].color } : null,
+      client: clientId ? { name: players[clientId].name, color: players[clientId].color } : null,
+    });
   });
 
   socket.on('startGame', ({ mapType, towerCount, econRate, gfxMode } = {}) => {
@@ -74,7 +78,12 @@ io.on('connection', (socket) => {
     if (socket.id === hostId) hostId = null;
     if (socket.id === clientId) clientId = null;
     delete players[socket.id];
-    io.emit('lobbyState', { hostConnected: !!hostId, clientConnected: !!clientId });
+    io.emit('lobbyState', {
+      hostConnected: !!hostId,
+      clientConnected: !!clientId,
+      host: hostId ? { name: players[hostId]?.name, color: players[hostId]?.color } : null,
+      client: clientId ? { name: players[clientId]?.name, color: players[clientId]?.color } : null,
+    });
   });
 });
 

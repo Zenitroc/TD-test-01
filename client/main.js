@@ -11,10 +11,15 @@ const econLabel = document.getElementById('econLabel');
 const gfxModeSelect = document.getElementById('gfxMode');
 const hostBtn = document.getElementById('hostBtn');
 const joinBtn = document.getElementById('joinBtn');
+const instructionsBtn = document.getElementById('instructionsBtn');
+const instructionsPanel = document.getElementById('instructionsPanel');
+const closeInstructionsBtn = document.getElementById('closeInstructions');
 const menu = document.getElementById('menu');
+const hostConfig = document.getElementById('hostConfig');
 const hud = document.getElementById('hud');
 const ipDisplay = document.getElementById('ipDisplay');
 const statusDiv = document.getElementById('status');
+const hostStatusDiv = document.getElementById('hostStatus');
 const moneySpan = document.getElementById('money');
 const baseHpSpan = document.getElementById('baseHp');
 const enemyHpSpan = document.getElementById('enemyHp');
@@ -35,25 +40,28 @@ const startBtn = document.createElement('button');
 startBtn.textContent = 'Iniciar partida';
 startBtn.id = 'startGame';
 
+
 let role = null;
 let game = null;
 let waveCooldown = false;
 
-hostBtn.addEventListener('click', () => {
+function hostGame() {
   role = 'host';
+  menu.classList.add('hidden');
+  hostConfig.classList.remove('hidden');
   socket.emit('register', {
     role: 'host',
     name: nameInput.value || 'Host',
     color: colorInput.value,
   });
-  statusDiv.textContent = 'Esperando jugador...';
+  hostStatusDiv.textContent = 'Esperando jugador...';
   mapTypeSelect.disabled = false;
   towerSelect.disabled = false;
   econRateInput.disabled = false;
   gfxModeSelect.disabled = false;
-});
+}
 
-joinBtn.addEventListener('click', () => {
+function joinGame() {
   role = 'client';
   socket.emit('register', {
     role: 'client',
@@ -65,7 +73,22 @@ joinBtn.addEventListener('click', () => {
   towerSelect.disabled = true;
   econRateInput.disabled = true;
   gfxModeSelect.disabled = true;
-});
+}
+
+function openInstructions() {
+  menu.classList.add('hidden');
+  instructionsPanel.classList.remove('hidden');
+}
+
+function closeInstructions() {
+  instructionsPanel.classList.add('hidden');
+  menu.classList.remove('hidden');
+}
+
+hostBtn.addEventListener('click', hostGame);
+joinBtn.addEventListener('click', joinGame);
+instructionsBtn.addEventListener('click', openInstructions);
+closeInstructionsBtn.addEventListener('click', closeInstructions);
 
 socket.on('ip', (ip) => {
   ipDisplay.textContent = `IP Host: ${ip}`;
@@ -75,10 +98,10 @@ socket.on('errorMsg', (msg) => {
   alert(msg);
 });
 
-socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
+socket.on('lobbyState', ({ hostConnected, clientConnected, host, client }) => {
   if (hostConnected && clientConnected) {
     if (role === 'host' && !document.getElementById('startGame')) {
-      menu.appendChild(startBtn);
+      hostConfig.appendChild(startBtn);
       startBtn.disabled = false;
       startBtn.addEventListener('click', () => {
         socket.emit('startGame', { mapType: mapTypeSelect.value, towerCount: +towerSelect.value, econRate: +econRateInput.value, gfxMode: gfxModeSelect.value });
@@ -87,7 +110,11 @@ socket.on('lobbyState', ({ hostConnected, clientConnected }) => {
     }
   }
   if (role === 'host') {
-    statusDiv.textContent = clientConnected ? 'Jugador Conectado!' : 'Esperando jugador...';
+    if (clientConnected && client) {
+      hostStatusDiv.innerHTML = `Jugador conectado: <span style="color:${client.color}">${client.name}</span>`;
+    } else {
+      hostStatusDiv.textContent = 'Esperando jugador...';
+    }
   }
   if (role === 'client' && clientConnected) {
     statusDiv.innerHTML = 'Conectado<br/>Esperando que el Host inicia... <span class="loader"></span>';
